@@ -36,7 +36,10 @@ var assets embed.FS
 
 type nonceContextKey struct{}
 
-var codePattern = regexp.MustCompile(`^(?:XG-[A-F0-9]{48}|XPP-[A-Z0-9]{16})$`)
+// New xPP- codes carry mixed-case characters in the vault; routes that read
+// them back (customer lookup, batch copy) match against the stored form, not
+// its upper-case shadow, so the alphabet here matches generation exactly.
+var codePattern = regexp.MustCompile(`^(?:XG-[A-F0-9]{48}|[xX][pP][pP]-[A-Za-z0-9]{16})$`)
 
 // adminPathPattern validates the optional secret prefix that moves the whole
 // admin surface (UI, assets and API) off the guessable /admin paths.
