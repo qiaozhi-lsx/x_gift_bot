@@ -207,6 +207,7 @@ func Run(ctx context.Context) error {
 	mux.HandleFunc("POST /api/status", s.status)
 	mux.HandleFunc("POST /api/code-info", s.human("code-info", s.codeInfo))
 	mux.HandleFunc("POST /api/code-info-batch", s.human("code-info", s.codeInfoBatch))
+	mux.HandleFunc("POST /api/code-lookup", s.human("code-info", s.codeLookup))
 	mux.HandleFunc("POST /api/check", s.human("check", s.check))
 	mux.HandleFunc("POST /api/check-batch", s.checkBatch)
 	mux.HandleFunc("GET "+adminBase+"/admin", s.admin(s.asset("admin.html", "text/html; charset=utf-8")))
@@ -570,7 +571,7 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			} else if strings.HasPrefix(r.URL.Path, "/api/batch/") {
 				max = 120
 				bucket = "batch:"
-			} else if r.URL.Path == "/api/code-info" || r.URL.Path == "/api/code-info-batch" {
+			} else if r.URL.Path == "/api/code-info" || r.URL.Path == "/api/code-info-batch" || r.URL.Path == "/api/code-lookup" {
 				max = 20
 				bucket = "code-info:"
 			} else if r.URL.Path == "/api/manual-link" {

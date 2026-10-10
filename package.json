@@ -6,6 +6,8 @@
     "build": "tsc --noEmit && node frontend/scripts/build.mjs",
     "check": "tsc --noEmit",
     "preview": "node frontend/scripts/preview.mjs",
+    "preview:redeem": "node frontend/scripts/preview.mjs --redeem",
+    "test:redeem": "node --test frontend/tests/redeemPage.test.mjs",
     "audit:ui": "node frontend/scripts/lighthouse.mjs"
   },
   "engines": {

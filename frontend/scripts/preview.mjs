@@ -5,10 +5,63 @@ import { gzipSync } from "node:zlib";
 import { randomBytes } from "node:crypto";
 
 const port = Number(process.env.PREVIEW_PORT || 4173);
+const redeemPage = process.argv.includes("--redeem");
 const paused = process.env.PREVIEW_PAUSED === "true";
 const states = new Map();
 const attempts = new Map();
 const linkJobs = new Map();
+const redeemBatches = new Map();
+const publicCodes = new Map();
+const codePattern = /^(?:XG-[A-F0-9]{48}|XPP-[A-Z0-9]{16})$/;
+const normalizeCode = (code) => typeof code === "string" ? code.trim().toUpperCase() : "";
+const normalizeUsername = (username) => typeof username === "string" ? username.trim().replace(/^@/, "").toLowerCase() : "";
+const maskUsername = (username) => !username ? "" : username.length < 4 ? "@***" : `@${username.slice(0, 2)}***${username.slice(-1)}`;
+const fixtureTime = Math.floor(Date.now() / 1000);
+for (const [code, status, queued = false] of [
+  ["XPP-DEMOACTIVE000001", "active"],
+  ["XPP-DEMOREDEEMED0001", "succeeded"],
+  ["XPP-DEMOQUEUED000001", "processing", true],
+  ["XPP-DEMOPROCESS00001", "processing"],
+  ["XPP-DEMOREVIEW000001", "review"],
+  ["XPP-DEMOREVOKED00001", "revoked"],
+  ["XG-" + "5".repeat(48), "succeeded"],
+]) publicCodes.set(code, { code, status, queued, ahead: queued ? 2 : 0, username: status === "active" || status === "revoked" ? "" : "demo_user", months: 3, progress: status === "succeeded" ? 100 : status === "processing" ? (queued ? 5 : 45) : 0, updated: fixtureTime });
+
+function publicCode(raw) {
+  const code = normalizeCode(raw);
+  if (!codePattern.test(code)) return { http: 400, error: "invalid_code", message: "请填写完整兑换码。" };
+  if (code === "XPP-DEMOBUSY00000001") return { http: 503, error: "service_unavailable", message: "暂时无法查询卡密，请稍后重试。" };
+  let record = publicCodes.get(code);
+  if (!record) {
+    const generated = [...plaintext.entries()].find(([, value]) => value === code);
+    const item = generated && codes.find((entry) => entry.id === generated[0]);
+    if (item) {
+      record = { code, status: item.status, months: item.months, username: item.username, updated: item.created, progress: 0, queued: false };
+      publicCodes.set(code, record);
+    }
+  }
+  if (!record) return { http: 404, error: "not_found", message: "未找到此卡密，请核对后重试。" };
+  if (record.started) {
+    const elapsed = Date.now() - record.started;
+    record.queued = elapsed < 1800;
+    record.status = elapsed >= 6500 ? "succeeded" : "processing";
+    record.progress = record.queued ? 5 : record.status === "succeeded" ? 100 : Math.min(90, 20 + Math.floor(elapsed / 1000) * 10);
+    record.updated = Math.floor(Date.now() / 1000);
+  }
+  return { http: 200, record };
+}
+
+function publicLookup(record) {
+  const messages = {
+    active: "卡密尚未兑换，可返回兑换页继续。",
+    processing: "正在办理中，请稍后查询，无需重复提交。",
+    succeeded: "此卡密已完成兑换，请登录接收账号查看 Premium。蓝色认证标识以 X 审核为准。",
+    review: "兑换结果待核实，请保留卡密并联系购买商家，无需重复提交。",
+    revoked: "此卡密已停用，请联系购买商家。",
+  };
+  return { status: record.status, months: record.months, label: `${record.months} 个月 Premium`, username_masked: maskUsername(record.username), progress: record.progress, updated: record.updated, queued: !!record.queued,
+    ...(record.queued ? { ahead: record.ahead || 0 } : {}), message: record.queued ? `已排队，前面还有 ${record.ahead || 0} 单，请稍后查询。` : messages[record.status], preview_mode: true };
+}
 let folders = [
   { id: "a".repeat(32), name: "本地预览 · 示例批次" },
   { id: "b".repeat(32), name: "国庆活动" },
@@ -46,9 +99,13 @@ const files = {
 createServer(async (req, res) => {
   const nonce = randomBytes(16).toString("hex");
   res.setHeader("Cache-Control", "no-store");
+  // Local visual preview: the browser's annotation overlay injects styles and
+  // uses data-URL cursor images. Keep script restrictions and production CSP.
+  const annotationStyles = redeemPage ? " style-src-elem 'self' 'unsafe-inline';" : "";
+  const annotationImages = redeemPage ? " data:" : "";
   res.setHeader(
     "Content-Security-Policy",
-    `default-src 'none'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; connect-src 'self'; worker-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+    `default-src 'none'; script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'nonce-${nonce}'; style-src-attr 'unsafe-inline';${annotationStyles} connect-src 'self'; worker-src 'self'; img-src 'self'${annotationImages}; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
   );
   res.setHeader("X-Content-Type-Options", "nosniff");
   const url = new URL(req.url, `http://127.0.0.1:${port}`);
@@ -58,20 +115,22 @@ createServer(async (req, res) => {
   }
   try {
     if (url.pathname === "/api/security") {
-      return json(200, { turnstile_enabled: process.env.PREVIEW_TURNSTILE === "true", turnstile_site_key: process.env.PREVIEW_TURNSTILE === "true" ? "1x00000000000000000000AA" : "" });
+      return json(200, { preview_mode: true, turnstile_enabled: process.env.PREVIEW_TURNSTILE === "true", turnstile_site_key: process.env.PREVIEW_TURNSTILE === "true" ? "1x00000000000000000000AA" : "" });
     }
-    if (process.env.PREVIEW_TURNSTILE === "true" && req.method === "POST" && ["/api/check", "/api/redeem", "/api/manual-link"].includes(url.pathname) && !req.headers["x-turnstile-token"]) {
+    if (process.env.PREVIEW_TURNSTILE === "true" && req.method === "POST" && ["/api/check", "/api/redeem", "/api/manual-link", "/api/code-info", "/api/code-info-batch", "/api/code-lookup"].includes(url.pathname) && !req.headers["x-turnstile-token"]) {
       return json(403, { message: "请完成人机验证后重试。" });
     }
     if (req.method === "GET" && files[url.pathname]) {
       const [file, type] = files[url.pathname];
       let data = await readFile(
-        new URL(`../../internal/site/assets/${file}`, import.meta.url),
+        new URL(redeemPage && url.pathname === "/" ? "../../web-redeem/index.html" : `../../internal/site/assets/${file}`, import.meta.url),
       );
       if (type === "text/html")
         data = data
           .toString()
           .replaceAll("__XGIFT_NONCE__", nonce)
+          .replace(/<script>/g, `<script nonce="${nonce}">`)
+          .replace(/<style>/g, `<style nonce="${nonce}">`)
           .replace("</title>", " · 本地模拟预览</title>");
       res.setHeader("Vary", "Accept-Encoding");
       if (/\bgzip\b/.test(req.headers["accept-encoding"] || "")) {
@@ -111,6 +170,16 @@ createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/healthz") {
       json(200, { ok: true, payments_enabled: !paused });
       return;
+    }
+    if (req.method === "GET" && url.pathname.startsWith("/api/batch/")) {
+      const batch = redeemBatches.get(url.pathname.split("/").pop());
+      if (!batch) return json(404, { message: "查询批次不存在或已过期。" });
+      const items = batch.map(({ code, username }) => {
+        const { record } = publicCode(code);
+        const result = publicLookup(record);
+        return { hint: code.slice(-8), username, months: record.months, status: record.queued ? "queued" : record.status, progress: record.progress, ...(record.queued ? { ahead: record.ahead || 0 } : {}), message: `本地模拟：${result.message}` };
+      });
+      return json(200, { items, done: items.filter((item) => ["succeeded", "review", "failed"].includes(item.status)).length, total: items.length, payments_enabled: !paused, preview_mode: true });
     }
     if (req.method === "GET" && url.pathname === "/api/admin/codes") {
       const page = Math.max(0, Number(url.searchParams.get("page")) || 0);
@@ -273,6 +342,47 @@ createServer(async (req, res) => {
       }
     }
     const body = JSON.parse(raw);
+    if (url.pathname === "/api/code-lookup" || url.pathname === "/api/code-info") {
+      const found = publicCode(body.code);
+      if (found.http !== 200) return json(found.http, { error: found.error, message: found.message });
+      return json(200, publicLookup(found.record));
+    }
+    if (url.pathname === "/api/code-info-batch") {
+      if (!Array.isArray(body.codes) || !body.codes.length || body.codes.length > 5) return json(400, { message: "每次最多校验 5 个兑换码。" });
+      return json(200, { results: body.codes.map((code) => {
+        const found = publicCode(code);
+        return found.http === 200 ? { ok: true, ...publicLookup(found.record) } : { ok: false, error: found.error, retry: found.http === 503, message: found.message };
+      }), preview_mode: true });
+    }
+    if (url.pathname === "/api/check-batch") {
+      if (!Array.isArray(body.usernames) || !body.usernames.length || body.usernames.length > 5) return json(400, { message: "每次最多检测 5 个用户名。" });
+      const users = body.usernames.map(normalizeUsername);
+      if (users.some((username) => !/^[a-z0-9_]{1,15}$/.test(username))) return json(400, { message: "请填写正确的 X 用户名。" });
+      return json(200, { results: users.map((username) => username === "demo_busy" ? { eligible: false, retry: true, message: "本地模拟：验证服务繁忙，请稍后重试，卡密未使用。" } : username === "existing_blue" ? { eligible: false, message: "本地模拟：该账号已有 Premium，无法接收赠送。" } : username === "missing_user" ? { eligible: false, message: "本地模拟：未找到该账号，请核对用户名。" } : { eligible: true, message: "本地模拟：该账号当前可以接收赠送。" }), preview_mode: true });
+    }
+    if (url.pathname === "/api/redeem-batch") {
+      if (paused) return json(503, { status: "paused", message: "充值暂时暂停，请保留卡密。" });
+      if (!Array.isArray(body.items) || !body.items.length || body.items.length > 5) return json(400, { message: "每次提交 1–5 组兑换码和用户名。" });
+      const prepared = [];
+      const seen = new Set();
+      for (const item of body.items) {
+        const code = normalizeCode(item?.code), username = normalizeUsername(item?.username);
+        if (!/^[a-z0-9_]{1,15}$/.test(username) || seen.has(code)) return json(400, { message: "请核对账号，同一卡密不能重复提交。" });
+        seen.add(code);
+        const found = publicCode(code);
+        if (found.http !== 200) return json(found.http, { message: found.message });
+        if (found.record.status !== "active") return json(409, { message: "卡密正在处理、已兑换或已停用，请前往卡密查询查看原订单。" });
+        if (["demo_busy", "existing_blue", "missing_user"].includes(username)) return json(409, { message: "账号尚未通过验证，卡密未使用。" });
+        prepared.push({ code, username, record: found.record });
+      }
+      const token = randomBytes(16).toString("hex");
+      const items = prepared.map(({ code, username, record }, index) => {
+        Object.assign(record, { username, status: "processing", queued: true, ahead: index, progress: 5, started: Date.now(), updated: Math.floor(Date.now() / 1000) });
+        return { hint: code.slice(-8), username, months: record.months };
+      });
+      redeemBatches.set(token, prepared.map(({ code, username }) => ({ code, username })));
+      return json(202, { status: "processing", progress: 10, token, items, months: items[0].months, queued: items.length, message: "本地模拟：已加入处理队列，未执行真实付款。", preview_mode: true });
+    }
     if (["/api/admin/manual-link", "/api/manual-link"].includes(url.pathname)) {
       if (![3, 6].includes(body.months) || !/^[a-z0-9_]{1,15}$/.test(body.username || "")) {
         json(400, {message: "请填写正确用户名和套餐。"}); return;

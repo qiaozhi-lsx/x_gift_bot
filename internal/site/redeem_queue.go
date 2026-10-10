@@ -481,16 +481,16 @@ func (s *server) codeInfoBatch(w http.ResponseWriter, r *http.Request) {
 	for _, raw := range q.Codes {
 		code := strings.ToUpper(strings.TrimSpace(raw))
 		if !codePattern.MatchString(code) {
-			results = append(results, map[string]any{"ok": false, "message": "请填写完整兑换码。"})
+			results = append(results, map[string]any{"ok": false, "error": "invalid_code", "message": "请填写完整兑换码。"})
 			continue
 		}
 		c, e := s.find(code)
 		if errors.Is(e, sql.ErrNoRows) {
-			results = append(results, map[string]any{"ok": false, "message": "兑换码不存在，请检查后重试。"})
+			results = append(results, map[string]any{"ok": false, "error": "not_found", "message": "兑换码不存在，请检查后重试。"})
 			continue
 		}
 		if e != nil {
-			results = append(results, map[string]any{"ok": false, "message": "服务暂时不可用，请稍后重试。"})
+			results = append(results, map[string]any{"ok": false, "error": "service_unavailable", "retry": true, "message": "服务暂时不可用，请稍后重试。"})
 			continue
 		}
 		results = append(results, map[string]any{

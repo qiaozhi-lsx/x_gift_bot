@@ -30,6 +30,28 @@ npm run preview
 
 打开 http://127.0.0.1:4173 是兑换页，http://127.0.0.1:4173/admin 是管理后台。所有数据都是内存示例，不连接真实服务。在兑换页输入 `XG-` 加 48 个字母 `A` 可以演示完整成功流程。
 
+### 新版兑换页预览
+
+```sh
+npm run preview:redeem
+```
+
+默认打开 http://127.0.0.1:4173/，后台为同一地址的 `/admin`。可通过 `PREVIEW_PORT=4175 npm run preview:redeem` 指定端口；该预览直接使用仓库已提交资源，不需要 Go 或真实付款配置。
+
+新版页面支持中英文切换、最多 5 张卡密兑换，以及只读 `POST /api/code-lookup` 查询（输入 `{ "code": "完整卡密" }`）。查询读取站点持久化订单，不会启动付款或重复兑换。
+
+`web-redeem/index.html` 是独立静态页面，目前 `npm run build` 与 Go 服务的默认首页仍使用原 React 兑换页。上线新版时，需将此 HTML 配置为站点的静态首页，并将同源 `/api/` 请求转发到已更新的 Go 后端；仅更新二进制或上传该文件，不会自动切换首页。该页面包含内联样式和脚本，静态站点的 CSP 也需按实际部署方式配置。
+
+本地仅使用示例数据，可测试：
+
+- `XPP-DEMOACTIVE000001`：未兑换，可完成模拟流程。
+- `XPP-DEMOREDEEMED0001`：已兑换，可测试卡密查询。
+- `XPP-DEMOQUEUED000001` / `XPP-DEMOREVIEW000001`：排队 / 待核实。
+- `XPP-DEMOBUSY00000001` / `XPP-DEMOABSENT000001`：暂时不可查询 / 未找到。
+- 验证用户名 `demo_busy` 可测试服务繁忙，`existing_blue` 可测试已有会员。
+
+`npm run test:redeem` 运行页面的过期验证、异步竞态、查询与错误分类回归检查。
+
 ## 部署教程
 
 ### 第一步：准备这些东西
