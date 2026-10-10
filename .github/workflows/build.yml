@@ -30,8 +30,11 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: |
-          go build -tags with_quic,with_utls -o bin/xgift ./cmd/xgift
-          go build -tags with_quic,with_utls -o bin/xgift-web ./cmd/xgift-web
+          # -trimpath 去掉构建机绝对路径;-s -w 剥离符号/DWARF;
+          # -buildid= 清空 build ID,产物 reproducible 更干净
+          LDFLAGS="-s -w -buildid="
+          go build -trimpath -ldflags="$LDFLAGS" -tags with_quic,with_utls -o bin/xgift ./cmd/xgift
+          go build -trimpath -ldflags="$LDFLAGS" -tags with_quic,with_utls -o bin/xgift-web ./cmd/xgift-web
           ls -la bin/
 
       - uses: actions/upload-artifact@v4

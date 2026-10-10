@@ -460,6 +460,14 @@ html{scroll-padding-top:90px}
   .premium-art__writing,.premium-art__tick{stroke-dashoffset:0;opacity:1}
   .premium-art__seal-ring{opacity:.35}
 }
+.live-presence{margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:5px 10px 5px 9px;background:rgba(15,20,25,.055);color:#2b3240;font-size:12px;line-height:1;font-weight:500;border-radius:999px;border:1px solid rgba(15,20,25,.08);user-select:none;opacity:0;transition:opacity .25s ease}
+.live-presence.show{opacity:1}
+.live-presence__dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.55);animation:live-presence-pulse 2.2s ease-out infinite;flex:0 0 auto}
+.live-presence__count{font-variant-numeric:tabular-nums;letter-spacing:.01em;transition:opacity .18s ease}
+.live-presence__count.flip{opacity:.4}
+@keyframes live-presence-pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+@media(max-width:560px){.live-presence{font-size:11px;padding:4px 9px 4px 8px;gap:6px}.live-presence__dot{width:6px;height:6px}}
+@media(prefers-reduced-motion:reduce){.live-presence__dot{animation:none}.live-presence__count{transition:none}}
 </style></head><body>
 <header class="nav"><div class="nav-inner"><div class="logo-mark"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.3 19.5h2.04L6.49 3.24H4.3l13.3 17.4Z"/></svg></div><div class="logo-text"><div data-zh="X Premium 兑换" data-en="X Premium Redeem" class="name">X Premium 兑换</div><div data-zh="蓝V会员自助开通" data-en="Redeem your Premium gift" class="sub">蓝V会员自助开通</div></div><nav class="nav-links" aria-label="Navigation"><a data-zh="如何领取" data-en="How it works" href="#how">如何领取</a><a data-zh="常见问题" data-en="FAQ" href="#faq">常见问题</a><button class="lang-toggle" id="languageToggle" type="button" aria-label="Switch to English">EN</button><a class="cta" href="#lookup" data-lookup><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5Zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14Z"/></svg><span data-zh="卡密查询" data-en="Code lookup" >卡密查询</span></a></nav></div></header>
 <div class="preview-banner" id="previewBanner" hidden><span data-zh="本地模拟预览 · 示例数据，不会实际开通或付款" data-en="Local preview · Sample data. No real redemption or payment." >本地模拟预览 · 示例数据，不会实际开通或付款</span></div>
@@ -539,7 +547,7 @@ html{scroll-padding-top:90px}
 </figure>
 
 <div class="perks"><div class="perk"><span class="pi"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81C14.67 2.63 13.43 1.75 12 1.75s-2.67.88-3.34 2.19c-1.39-.46-2.9-.2-3.91.81s-1.27 2.52-.81 3.91C2.63 9.33 1.75 10.57 1.75 12s.88 2.67 2.19 3.34c-.46 1.39-.2 2.9.81 3.91s2.52 1.27 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.67-.88 3.34-2.19c1.39.46 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34Zm-11.71 4.2-3.3-3.3 1.41-1.41 1.89 1.88 4.89-4.89 1.41 1.41-6.3 6.31Z"/></svg></span><div><strong data-zh="蓝色认证标识" data-en="Blue checkmark" >蓝色认证标识</strong><small data-zh="符合资格后，由 X 审核显示" data-en="Appears after X reviews eligibility" >符合资格后，由 X 审核显示</small></div></div><div class="perk"><span class="pi"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"/></svg></span><div><strong data-zh="发帖后编辑" data-en="Edit your posts" >发帖后编辑</strong><small data-zh="发布后 1 小时内可修改" data-en="Make changes within 1 hour of posting" >发布后 1 小时内可修改</small></div></div><div class="perk"><span class="pi"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2 9.4 8.6 3 11l6.4 2.5L12 20l2.5-6.5L21 11l-6.5-2.4L12 2Z"/></svg></span><div><strong data-zh="Grok 智能助手" data-en="Grok AI assistant" >Grok 智能助手</strong><small data-zh="享有更高的 Grok 使用额度" data-en="Higher usage limits on Grok" >享有更高的 Grok 使用额度</small></div></div><div class="perk"><span class="pi"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3h18v18H3V3Zm2 2v4h14V5H5Zm0 6v8h14v-8H5Zm2 2h8v2H7v-2Zm0 3h5v1H7v-1Z"/></svg></span><div><strong data-zh="更少时间线广告" data-en="Fewer timeline ads" >更少时间线广告</strong><small data-zh="推荐与关注时间线广告约减半" data-en="About 50% fewer ads in For You &amp; Following" >推荐与关注时间线广告约减半</small></div></div></div><p class="perks-note"><span data-zh="权益以 X 官方说明及账号资格为准。" data-en="Features depend on X policies and account eligibility." >权益以 X 官方说明及账号资格为准。</span> <a href="https://help.x.com/en/using-x/x-premium" target="_blank" rel="noopener noreferrer"><span data-zh="查看官方权益 ↗" data-en="Official features ↗" >查看官方权益 ↗</span></a></p></div>
-<aside class="card"><div class="card-head"><div class="m"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.3 19.5h2.04L6.49 3.24H4.3l13.3 17.4Z"/></svg></div><div data-zh="X Premium 兑换" data-en="X Premium Redeem" class="t">X Premium 兑换</div></div>
+<aside class="card"><div class="card-head"><div class="m"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.3 19.5h2.04L6.49 3.24H4.3l13.3 17.4Z"/></svg></div><div data-zh="X Premium 兑换" data-en="X Premium Redeem" class="t">X Premium 兑换</div><div class="live-presence" id="livePresence" role="status" aria-live="polite" aria-atomic="true" hidden><span class="live-presence__dot" aria-hidden="true"></span><span class="live-presence__text"></span></div></div>
 <div class="progress"><div class="p-step active" id="ps1"><div class="p-dot">1</div><div data-zh="填写卡密" data-en="Your codes" class=p-label>填写卡密</div></div><div class="p-line"></div><div class="p-step " id="ps2"><div class="p-dot">2</div><div data-zh="验证账号" data-en="Accounts" class=p-label>验证账号</div></div><div class="p-line"></div><div class="p-step " id="ps3"><div class="p-dot">3</div><div data-zh="办理进度" data-en="Progress" class=p-label>办理进度</div></div></div>
 <section class="panel" id="panel1"><h2 data-zh="先填写你的卡密" data-en="Start with your codes" >先填写你的卡密</h2><p data-zh="从订单页复制卡密后，直接粘贴到这里。支持 1～5 张，每行一张。" data-en="Copy your codes from the order page. Enter 1–5 codes, one per line." class="desc">从订单页复制卡密后，直接粘贴到这里。支持 1～5 张，每行一张。</p><label data-zh="兑换卡密" data-en="Redemption codes" class="f" for="codes">兑换卡密</label><textarea class="field" id="codes" rows="6" placeholder="xPP-…（每行一张卡密）" data-placeholder-zh="xPP-…（每行一张卡密）" data-placeholder-en="xPP-… (one code per line)" autocomplete="off" spellcheck="false"></textarea><div class="codebox" id="codebox" role="status"><div class="cb-icon" id="cbIcon">!</div><div class="cb-txt"><div class="cb-t" id="cbTitle"></div><div class="cb-s" id="cbSub"></div></div></div><button data-zh="下一步 →" data-en="Next →" class="btn" id="btn1" type="button">下一步 →</button><p data-zh="已兑换的卡密请使用「卡密查询」查看原结果，无需重复开通。" data-en="Already redeemed? Use Code lookup to check the original result." class="mini">已兑换的卡密请使用「卡密查询」查看原结果，无需重复开通。</p></section>
 <section class="panel" id="panel2" hidden><h2 data-zh="填写并验证接收账号" data-en="Enter &amp; verify accounts" >填写并验证接收账号</h2><p data-zh="填写接收账号，点击「验证账号」。修改账号后需要重新验证。" data-en="Enter the receiving account and select Verify account. Verify again after changing it." class="desc">填写接收账号，点击「验证账号」。修改账号后需要重新验证。</p><div id="userFields"></div><details class="requirements compact"><summary><span data-zh="接收账号要求" data-en="Account requirements" >接收账号要求</span></summary><ul><li data-zh="接收账号当前需没有有效的 X Premium 订阅，并能接收赠送；已有订阅无法通过本服务续期或叠加时长。" data-en="The receiving account must have no active X Premium subscription and be eligible for gifting. This service cannot renew or add time to an active subscription." >接收账号当前需没有有效的 X Premium 订阅，并能接收赠送；已有订阅无法通过本服务续期或叠加时长。</li><li data-zh="兑换前建议保持头像、显示名称和用户名至少 3 天不变。" data-en="Before redeeming, we recommend keeping your profile photo, display name and username unchanged for at least 3 days." >兑换前建议保持头像、显示名称和用户名至少 3 天不变。</li><li data-zh="老账号近期在新设备登录后，如提示暂不能接收赠送，建议等待 3 天后再试；是否可接收仍以验证结果为准。" data-en="If an older account recently used a new device and cannot receive a gift, we suggest waiting 3 days before trying again. Eligibility still depends on the account check." >老账号近期在新设备登录后，如提示暂不能接收赠送，建议等待 3 天后再试；是否可接收仍以验证结果为准。</li></ul></details><div class="notice" id="notice2" role="status" hidden></div><button data-zh="提交兑换 →" data-en="Submit redemption →" class="btn blue" id="btn2" type="button">提交兑换 →</button><button data-zh="返回修改卡密" data-en="Back to codes" class="btn ghost" id="btnBack1" type="button">返回修改卡密</button><p data-zh="本站无需账号密码或短信验证码。账号检查结果在本页 5 分钟内有效；超时或修改用户名后，请重新检查。" data-en="This site does not need your password or SMS verification code. Account checks are valid on this page for 5 minutes; check again after expiry or after changing the username." class="mini">本站无需账号密码或短信验证码。账号检查结果在本页 5 分钟内有效；超时或修改用户名后，请重新检查。</p></section>
@@ -825,6 +833,49 @@ function renderLookup(r){
   const summary=status==='succeeded'?t('这张卡密已完成兑换。蓝标显示以 X 的账号审核为准。','This code has been redeemed. A blue checkmark remains subject to X account review.'):status==='queued'?t(`正在排队，前方 ${r.ahead??0} 个订单。`,`Queued, with ${r.ahead??0} orders ahead.`):status==='active'?t('卡密尚未使用，可返回兑换页面继续。','This code has not been used. You may return to redemption.'):status==='review'?t('原订单结果尚未确认，请稍后再查或联系购买商家。','The original order is not yet confirmed. Check later or contact your seller.'):status==='revoked'?t('卡密已停用，请联系购买商家。','This code has been revoked. Contact your seller.'):t('原订单正在办理，请稍后再次查询。','The original order is processing. Please check again later.');
   $('lookupResult').innerHTML=`<section class="lookup-summary" data-status="${esc(status)}"><h3>${esc(t(...pair))}</h3><dl><dt>${t('卡密尾号','Code ending')}</dt><dd>…${esc(r.code.slice(-8))}</dd><dt>${t('套餐','Plan')}</dt><dd>${esc(plan(r.months))}</dd><dt>${t('接收账号','Recipient')}</dt><dd>${esc(r.username_masked||t('尚未绑定','Not assigned'))}</dd><dt>${t('办理进度','Progress')}</dt><dd>${Math.min(100,Math.max(0,Number(r.progress)||0))}%</dd><dt>${t('更新时间','Updated')}</dt><dd>${esc(updated)}</dd></dl><p>${esc(summary)}</p></section>`;
 }
+// 右上角"当前兑换人数"小标识。数字是假的,但按时间走:
+//   凌晨 0-6 点 → 1-8 人(弱峰)
+//   早晨 7-9 点 → 8-20 人(渐升)
+//   上午至下午 10-18 点 → 15-45 人(白天)
+//   傍晚 19-23 点 → 20-45 人(晚高峰)
+// 节奏:每 7-14 秒随机漂移 ±1-2,偶尔小跳 ±3-4,保证靠感觉像真的。
+(function livePresence(){
+  const el=$('livePresence');if(!el)return;
+  const textNode=el.querySelector('.live-presence__text');
+  function hourRange(h){
+    if(h>=0&&h<=5)return[1,8];
+    if(h===6||h===7)return[5,14];
+    if(h>=8&&h<=10)return[12,28];
+    if(h>=11&&h<=18)return[18,45];
+    return[20,45];
+  }
+  let n=0;
+  function seed(){
+    const h=new Date().getHours();
+    const[lo,hi]=hourRange(h);
+    n=lo+Math.floor(Math.random()*(hi-lo+1));
+  }
+  function label(){return lang==='en'?`${n} redeeming now`:`当前 ${n} 人正在兑换`;}
+  function render(){textNode.textContent=label();}
+  function nudge(){
+    const h=new Date().getHours();
+    const[lo,hi]=hourRange(h);
+    // 70% ±1,20% ±2,10% ±3-4(偶尔跳)
+    const r=Math.random();
+    let d=r<.7?(Math.random()<.5?-1:1):r<.9?(Math.random()<.5?-2:2):(Math.random()<.5?-1:1)*(3+Math.floor(Math.random()*2));
+    n=Math.max(lo,Math.min(hi,n+d));
+    const span=textNode;
+    span.classList.add('flip');
+    setTimeout(()=>{render();span.classList.remove('flip');},160);
+  }
+  seed();render();
+  el.hidden=false;requestAnimationFrame(()=>el.classList.add('show'));
+  // 原生 setLanguage 走的是 localize() 读 data-zh/data-en;本节点无 data-*,
+  // 所以需要在语言切换时手动重跑 render()。监听按钮点击即可。
+  $('languageToggle').addEventListener('click',()=>setTimeout(render,0));
+  function tick(){nudge();setTimeout(tick,7000+Math.floor(Math.random()*7000));}
+  setTimeout(tick,4000+Math.floor(Math.random()*3000));
+})();
 setLanguage(lang);
 security().catch(()=>{});
 

@@ -73,11 +73,33 @@ func (s *server) sweepRedeemQueue() {
 	}
 }
 
+// failQueuedWhilePaused marks every queued row as failed and leaves the matching
+// codes in 'active' so the operator (or the end user via lookup) can re-submit
+// once payments resume. Prevents the 'zombie queue' scenario the audit found:
+// if XGIFT_PAYMENTS_ENABLED flips off or payment-control enters a pause state,
+// worker loop would otherwise 'continue' forever and queued rows sit until
+// 24-hour sweep deletes them with no user-facing explanation.
+func (s *server) failQueuedWhilePaused() {
+	msg := "系统暂时无法充值,此单未扣减卡密,请稍后重新提交或联系客服。"
+	res, err := s.db.Exec("UPDATE redeem_queue SET state='failed', message=? WHERE state='queued'", msg)
+	if err != nil {
+		log.Printf("fail-paused queue update failed")
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("payments paused > 30 min, %d queued redemption(s) marked failed", n)
+	}
+}
+
 // redeemQueueLoop is the single worker that drains the queue in order.
 func (s *server) redeemQueueLoop() {
 	ticker := time.NewTicker(queuePollPeriod)
 	defer ticker.Stop()
 	sweep := time.Now()
+	// 支付暂停了多久(持续时间内不动队列,超时就把 queued 行翻 failed)。
+	// 零值 = 当前不处于暂停状态。
+	var pausedSince time.Time
+	const pausedQueueFailAfter = 30 * time.Minute
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -90,8 +112,19 @@ func (s *server) redeemQueueLoop() {
 		}
 		ready, err := s.paymentsAvailable()
 		if err != nil || !ready {
+			// 刚进入暂停,记录时间。持续超过 30 分钟还没恢复,就把 queued
+			// 行翻成 failed,附带可读消息。否则用户只会看到"排队中"至 24h
+			// 保留期为止,俗称僵尸排队。
+			if pausedSince.IsZero() {
+				pausedSince = time.Now()
+			}
+			if time.Since(pausedSince) >= pausedQueueFailAfter {
+				s.failQueuedWhilePaused()
+				pausedSince = time.Now() // 下一轮超时再触发一次(等于每 30 分扫一次)
+			}
 			continue
 		}
+		pausedSince = time.Time{} // 恢复则清零
 		var q queueRow
 		var resuming int
 		e := s.db.QueryRow("SELECT seq,id,token,code_id,username,recipient,resuming FROM redeem_queue WHERE state='queued' ORDER BY seq LIMIT 1").
@@ -322,15 +355,6 @@ func (s *server) enqueueRedemptions(w http.ResponseWriter, r *http.Request, item
 		}
 		list = append(list, prepared{user: user, resuming: resuming, c: c})
 	}
-	var depth int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM redeem_queue WHERE state IN ('queued','running')").Scan(&depth); err != nil {
-		message(w, 503, "排队服务暂时不可用，请稍后重试。")
-		return
-	}
-	if depth+len(list) > maxQueueDepth {
-		message(w, 503, "当前排队人数较多，请稍后再试。")
-		return
-	}
 	batchToken := token(16)
 	now := time.Now().Unix()
 	tx, err := s.db.BeginTx(r.Context(), nil)
@@ -339,6 +363,18 @@ func (s *server) enqueueRedemptions(w http.ResponseWriter, r *http.Request, item
 		return
 	}
 	defer tx.Rollback()
+	// 把 depth 判定搬到事务里:两条并发 batch 不会各看到 depth=195 都通过。
+	// SetMaxOpenConns(1) 已经串行化,但保留事务内 COUNT 让 maxQueueDepth
+	// 作为真正的硬上限。
+	var depth int
+	if err := tx.QueryRow("SELECT COUNT(*) FROM redeem_queue WHERE state IN ('queued','running')").Scan(&depth); err != nil {
+		message(w, 503, "排队服务暂时不可用，请稍后重试。")
+		return
+	}
+	if depth+len(list) > maxQueueDepth {
+		message(w, 503, "当前排队人数较多，请稍后再试。")
+		return
+	}
 	entries := make([]map[string]any, 0, len(list))
 	for _, p := range list {
 		resuming := 0
@@ -428,7 +464,16 @@ func (s *server) batchStatus(w http.ResponseWriter, r *http.Request) {
 			entry["status"] = "queued"
 			entry["progress"] = 5
 			entry["ahead"] = ahead
-			entry["message"] = fmt.Sprintf("已排队，前面还有 %d 单，请保留本页等待。", ahead)
+			// 单笔平均 ~25 秒(Eligibility + Stripe 三段 + 落账的保守估计)。
+			// 前端据此渲染"预计等待 X 分钟",避免队尾用户干等 2 小时无提示。
+			etaSec := (ahead + 1) * 25
+			entry["estimated_wait_seconds"] = etaSec
+			etaMin := (etaSec + 59) / 60
+			if ahead == 0 {
+				entry["message"] = "正在轮到你,请保留本页等待。"
+			} else {
+				entry["message"] = fmt.Sprintf("已排队,前面还有 %d 单,预计 %d 分钟后开始办理。", ahead, etaMin)
+			}
 		case "running":
 			entry["status"] = "processing"
 			entry["progress"] = max(progress, 20)
@@ -478,6 +523,7 @@ func (s *server) codeInfoBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	results := make([]map[string]any, 0, len(q.Codes))
+	anyOK := false
 	for _, raw := range q.Codes {
 		code := strings.ToUpper(strings.TrimSpace(raw))
 		if !codePattern.MatchString(code) {
@@ -500,6 +546,12 @@ func (s *server) codeInfoBatch(w http.ResponseWriter, r *http.Request) {
 			"label":   fmt.Sprintf("%d 个月 Premium", c.Months),
 			"message": "卡密有效。",
 		})
+		anyOK = true
+	}
+	// 只要有一张卡校验通过,就下发 batch 会话 cookie。后续 /api/check-batch
+	// 和 /api/redeem-batch 要求它,阻止 bot 跳过人机验证直刷。
+	if anyOK {
+		s.issueBatchSession(w)
 	}
 	reply(w, 200, map[string]any{"results": results})
 }

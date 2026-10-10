@@ -161,6 +161,11 @@ func Run(ctx context.Context) error {
 	if err = s.restoreRedeemQueue(); err != nil {
 		return err
 	}
+	// 启动时清理崩溃时留下的 active_checkout 卡槽占用(超过 ExpiresAt +
+	// 10 分钟缓冲),避免因上次崩溃无人驱动而阻塞下一笔链接创建。
+	if err = checkout.ReleaseStaleActiveCheckout(v); err != nil {
+		log.Printf("stale active_checkout release failed: %v", err)
+	}
 	raw, err := v.Get("proxy")
 	if err != nil {
 		return err
@@ -197,7 +202,7 @@ func Run(ctx context.Context) error {
 	})
 	mux.HandleFunc("GET /api/security", s.securityConfig)
 	mux.HandleFunc("POST /api/redeem", s.human("redeem", s.redeem))
-	mux.HandleFunc("POST /api/redeem-batch", s.redeemBatch)
+	mux.HandleFunc("POST /api/redeem-batch", s.requireBatchSession(s.redeemBatch))
 	mux.HandleFunc("GET /api/batch/{token}", s.batchStatus)
 	mux.HandleFunc("GET /api/manual-link/plans", s.publicLinkPlans)
 	mux.HandleFunc("POST /api/manual-link", s.human("manual_link", s.publicLink))
@@ -212,7 +217,7 @@ func Run(ctx context.Context) error {
 	mux.HandleFunc("POST /api/code-info-batch", s.human("code-info", s.codeInfoBatch))
 	mux.HandleFunc("POST /api/code-lookup", s.human("code-info", s.codeLookup))
 	mux.HandleFunc("POST /api/check", s.human("check", s.check))
-	mux.HandleFunc("POST /api/check-batch", s.checkBatch)
+	mux.HandleFunc("POST /api/check-batch", s.requireBatchSession(s.checkBatch))
 	mux.HandleFunc("GET "+adminBase+"/admin", s.admin(s.asset("admin.html", "text/html; charset=utf-8")))
 	mux.HandleFunc("GET "+adminBase+"/admin.js", s.admin(s.asset("admin.js", "application/javascript; charset=utf-8")))
 	mux.HandleFunc("GET "+adminBase+"/api/admin/codes", s.admin(s.list))
@@ -256,12 +261,14 @@ func Run(ctx context.Context) error {
 	go func() { defer s.jobs.Done(); s.publicLinkQueueLoop() }()
 	s.jobs.Add(1)
 	go func() { defer s.jobs.Done(); s.redeemQueueLoop() }()
+	s.jobs.Add(1)
+	go func() { defer s.jobs.Done(); s.vaultSweepLoop() }()
 	select {
 	case err = <-done:
 	case <-ctx.Done():
 	}
 	cancelService()
-	shutdown, cancel := context.WithTimeout(context.Background(), 55*time.Second)
+	shutdown, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	if e := h.Shutdown(shutdown); e != nil {
 		h.Close()
@@ -347,7 +354,10 @@ func openSiteDB(dbpath string) (*sql.DB, error) {
  status TEXT NOT NULL CHECK(status IN ('active','processing','succeeded','review','revoked')),
  username TEXT NOT NULL DEFAULT '', recipient_id TEXT UNIQUE,
  message TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL, updated INTEGER NOT NULL
- ); CREATE INDEX IF NOT EXISTS codes_created ON codes(created);`)
+ );
+ CREATE INDEX IF NOT EXISTS codes_created ON codes(created);
+ CREATE INDEX IF NOT EXISTS codes_status_updated ON codes(status, updated);
+ CREATE INDEX IF NOT EXISTS codes_username ON codes(username) WHERE username <> '';`)
 	if err != nil {
 		return nil, err
 	}
@@ -901,6 +911,16 @@ func (s *server) generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	codes := make([]string, 0, q.Count)
+	// 收集已写入 vault 的 redemption:ID,事务 rollback / commit 失败时
+	// 回滚这些记录,避免生成失败留下孤儿 vault 记录(M5)。
+	var vaultIDs []string
+	rollback := func() {
+		for _, id := range vaultIDs {
+			if err := s.vault.Delete("redemption:" + id); err != nil {
+				log.Printf("vault redemption:%s rollback failed: %v", id, err)
+			}
+		}
+	}
 	now := time.Now().Unix()
 	for i := 0; i < q.Count; i++ {
 		code := "xPP-" + codeSuffix(16)
@@ -908,19 +928,23 @@ func (s *server) generate(w http.ResponseWriter, r *http.Request) {
 		// Persist encrypted content first; an interrupted transaction can only leave an
 		// unreachable vault record, never an active code without its encrypted value.
 		if e = s.vault.Put("redemption:"+id, []byte(code)); e != nil {
+			rollback()
 			message(w, 503, "无法加密保存兑换码，尚未生成本批。")
 			return
 		}
+		vaultIDs = append(vaultIDs, id)
 		// Input is upper-cased before lookup, so the stored digest is taken over
 		// the upper-cased code while the vault keeps the display form.
 		_, e = tx.Exec("INSERT INTO codes(id,hash,hint,batch,months,status,created,updated,folder_id,copyable) VALUES(?,?,?,?,?,'active',?,?,?,1)", id, hash(strings.ToUpper(code)), code[len(code)-8:], q.Batch, q.Months, now, now, folder)
 		if e != nil {
+			rollback()
 			message(w, 503, "生成失败，没有保存本批兑换码。")
 			return
 		}
 		codes = append(codes, code)
 	}
 	if e = tx.Commit(); e != nil {
+		rollback()
 		message(w, 503, "保存结果不确定，请在后台核实批次后再操作。")
 		return
 	}

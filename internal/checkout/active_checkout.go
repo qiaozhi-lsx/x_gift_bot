@@ -64,6 +64,32 @@ func currentActiveCheckout(v *vault.Vault) (activeCheckout, error) {
 	return a, err
 }
 
+// ReleaseStaleActiveCheckout clears a public-checkout reservation whose
+// payment window has already ended by more than staleWindowGrace. Called on
+// server start so a crash mid-payment cannot leave the next boot unable to
+// create a new link because of a dangling pin whose Record is "half written"
+// in vault but no live worker is driving it anymore.
+func ReleaseStaleActiveCheckout(v *vault.Vault) error {
+	a, err := readActiveCheckout(v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if a.Released {
+		return nil
+	}
+	if a.ExpiresAt == 0 {
+		return nil
+	}
+	if time.Now().UnixMilli() <= a.ExpiresAt+staleWindowGrace.Milliseconds() {
+		return nil
+	}
+	a.Released = true
+	return saveActiveCheckout(v, a)
+}
+
 // Callers hold checkout.lock. A successful publication reserves its original
 // creation timestamp, never a sliding interval from subsequent cache retrievals.
 func holdPublicCheckout(v *vault.Vault, r *Record, p Plan, now time.Time) error {

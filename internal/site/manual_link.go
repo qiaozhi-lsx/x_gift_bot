@@ -173,6 +173,17 @@ func (s *server) createLink(ctx context.Context, q manualLinkRequest, publicOwne
 			reason = "x_read_failure"
 		}
 	}
+	// 对公开(未鉴权)入口合并"该账号有既有订单"类错误消息,避免未鉴权
+	// 枚举:只要知道一个 X 用户名,就能通过 reason/消息差异得知"这个账号
+	// 在本站买过/有未完成订单"。日志里保留具体 reason 便于排障。
+	if publicOwner != "" {
+		switch reason {
+		case "payment_in_progress", "private_order", "public_order_conflict",
+			"link_expired_unpaid", "manual_link_conflict", "submitted_order",
+			"creation_pending":
+			o = failed(409, "该账号暂时无法生成新链接,请稍后重试或联系客服。")
+		}
+	}
 	log.Printf("manual link failed: public=%t months=%d reason=%s", publicOwner != "", q.Months, reason)
 	return o
 }
