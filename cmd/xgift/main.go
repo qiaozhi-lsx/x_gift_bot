@@ -448,7 +448,7 @@ func runCards(v *vault.Vault, sub, last4 string) error {
 		fmt.Printf("已移除尾号 %s；卡池剩余 %d 张\n", last4, remaining)
 		return nil
 	case "unblock":
-		cleared, err := checkout.UnblockPaymentCards(v)
+		cleared, err := checkout.UnblockPaymentCards(v, last4)
 		if err != nil {
 			return err
 		}

@@ -63,6 +63,7 @@ type Listing = {
   page: number;
   has_more: boolean;
   payments_enabled: boolean;
+  plan_prices?: Record<string, number>;
 };
 type Generated = {
   codes: string[];
@@ -875,16 +876,17 @@ function Admin() {
                         color={statuses[code.status]?.color ?? "default"}
                         label={statuses[code.status]?.label ?? code.status}
                       />
-                      {code.status === "succeeded" && formatCost(code.months) && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}
-                          aria-label={`付款成本 ${formatCost(code.months)}`}
-                        >
-                          成本 {formatCost(code.months)}
-                        </Typography>
-                      )}
+                      {code.status === "succeeded" &&
+                        formatCost(code.months, listing?.plan_prices) && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}
+                            aria-label={`付款成本 ${formatCost(code.months, listing?.plan_prices)}`}
+                          >
+                            成本 {formatCost(code.months, listing?.plan_prices)}
+                          </Typography>
+                        )}
                     </Stack>
                     {code.message && (
                       <Typography

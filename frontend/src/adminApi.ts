@@ -15,6 +15,7 @@ export type CardStatus = {
   limit?: number;
   used_usd?: number;
   used_count?: number;
+  in_flight?: number;
   per_months?: Record<string, number>;
   remaining?: number;
   unlimited?: boolean;
@@ -30,6 +31,10 @@ export type NewCard = {
   exp_year: string;
   cvc: string;
   limit: number;
+  billing_name?: string;
+  email?: string;
+  billing_country?: string;
+  billing_postal_code?: string;
 };
 export function addCard(body: NewCard) {
   return adminApi<{ count: number; message?: string }>(
@@ -43,10 +48,10 @@ export function removeCard(last4: string) {
     { last4 },
   );
 }
-export function unblockCards() {
+export function unblockCards(last4?: string) {
   return adminApi<{ cleared: number; message?: string }>(
     "/api/admin/cards/unblock",
-    {},
+    { last4: last4 ?? "" },
   );
 }
 export type AdminStats = {

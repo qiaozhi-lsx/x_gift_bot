@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+
+	"xgift/internal/checkout"
 )
 
 func (s *server) list(w http.ResponseWriter, r *http.Request) {
@@ -127,5 +129,11 @@ func (s *server) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	paymentsReady, _ := s.paymentsAvailable()
-	reply(w, 200, map[string]any{"codes": codes, "payments_enabled": paymentsReady, "page": page, "has_more": hasMore, "folder": filter, "folders": folders, "stats": stats})
+	plans := map[int]int{}
+	if cat, catErr := checkout.ReadCatalog(s.vault); catErr == nil {
+		for _, p := range cat.Plans {
+			plans[p.Months] = p.Amount // minor units,前端除 100 为 USD
+		}
+	}
+	reply(w, 200, map[string]any{"codes": codes, "payments_enabled": paymentsReady, "page": page, "has_more": hasMore, "folder": filter, "folders": folders, "stats": stats, "plan_prices": plans})
 }

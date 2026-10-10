@@ -38,6 +38,7 @@ var (
 	cardYearPattern   = regexp.MustCompile(`^[0-9]{4}$`)
 	cardCVCPattern    = regexp.MustCompile(`^[0-9]{3,4}$`)
 	cardCountry       = regexp.MustCompile(`^[A-Z]{2}$`)
+	cardLast4Re       = regexp.MustCompile(`^[0-9]{4}$`)
 )
 
 // validateCard is the structural and expiry check every payment card must pass.
@@ -333,41 +334,81 @@ func coolPaymentPairLocked(v *vault.Vault, fingerprint, nodeID, reason string) e
 	return saveCardBlocks(v, blocks)
 }
 
-// UnblockPaymentCards clears every durable card block. It is an explicit
-// operator action; the recovery batch confirmation never calls it. When the
-// provider no-retry instruction paused the site and a usable card remains, the
-// pause is lifted together with the block.
-func UnblockPaymentCards(v *vault.Vault) (int, error) {
+// UnblockPaymentCards clears durable card blocks. When last4 is empty every
+// block is cleared; when last4 names one card only that card's block and the
+// pair-level cooldowns anchored to it go, so operators can rescue one card
+// without wiping the audit trail on the rest of the pool. When the provider
+// no-retry instruction paused the site and a usable card remains, the pause
+// is lifted together with the block.
+func UnblockPaymentCards(v *vault.Vault, last4 string) (int, error) {
 	paymentRouteMu.Lock()
 	defer paymentRouteMu.Unlock()
 	blocks, err := readCardBlocks(v)
 	if err != nil {
 		return 0, err
 	}
-	if len(blocks) > 0 {
+	if len(blocks) == 0 {
+		return 0, nil
+	}
+	cleared := 0
+	if last4 == "" {
+		cleared = len(blocks)
 		if err = v.Put(cardBlockRecord, []byte("{}")); err != nil {
+			return 0, err
+		}
+	} else {
+		cards, cardsErr := readCardsOptional(v)
+		if cardsErr != nil {
+			return 0, cardsErr
+		}
+		var target string
+		for _, c := range cards {
+			if cardTail(c) == last4 {
+				target = cardFingerprint(c)
+				break
+			}
+		}
+		if target == "" {
+			return 0, fmt.Errorf("no configured card ends with %s", last4)
+		}
+		next := map[string]cardBlock{}
+		for key, block := range blocks {
+			if key == target {
+				cleared++
+				continue
+			}
+			if strings.HasPrefix(key, target+":") {
+				cleared++
+				continue
+			}
+			next[key] = block
+		}
+		if cleared == 0 {
+			return 0, nil
+		}
+		if err = saveCardBlocks(v, next); err != nil {
 			return 0, err
 		}
 	}
 	state, err := readPaymentControl(v)
 	if err != nil {
-		return 0, err
+		return cleared, err
 	}
 	if state.Paused && state.Reason == "do_not_try_again" {
 		usable, e := hasUsableCard(v)
 		if e != nil {
-			return 0, e
+			return cleared, e
 		}
 		if usable {
 			state.Paused = false
 			state.Reason = ""
 			state.ConsecutiveDeclines = 0
 			if err = savePaymentControl(v, state); err != nil {
-				return 0, err
+				return cleared, err
 			}
 		}
 	}
-	return len(blocks), nil
+	return cleared, nil
 }
 
 // hasUsableCard reports whether any configured card is not permanently
@@ -393,7 +434,8 @@ func hasUsableCard(v *vault.Vault) (bool, error) {
 }
 
 // CardStatus is a number-free view of one configured card for the CLI and the
-// admin dashboard.
+// admin dashboard. Remaining is always written (even for unlimited cards) so
+// clients never have to reason about omitempty gaps.
 type CardStatus struct {
 	Last4          string      `json:"last4"`
 	Usable         bool        `json:"usable"`
@@ -401,11 +443,12 @@ type CardStatus struct {
 	Blocked        string      `json:"blocked,omitempty"`
 	CoolingSeconds int64       `json:"cooling_seconds,omitempty"`
 	PairCooling    int         `json:"pair_cooling,omitempty"`
-	Limit          float64     `json:"limit,omitempty"`     // 初始额度 USD;0 = 未设限(老卡)
-	UsedUSD        float64     `json:"used_usd,omitempty"`  // 从 checkout records 聚合而来
-	UsedCount      int         `json:"used_count,omitempty"`
+	Limit          float64     `json:"limit"`
+	UsedUSD        float64     `json:"used_usd"`
+	UsedCount      int         `json:"used_count"`
+	InFlight       int         `json:"in_flight,omitempty"`
 	PerMonths      map[int]int `json:"per_months,omitempty"`
-	Remaining      float64     `json:"remaining,omitempty"` // Limit - UsedUSD;Limit=0 时为 0 且 Unlimited=true
+	Remaining      float64     `json:"remaining"`
 	Unlimited      bool        `json:"unlimited,omitempty"`
 	Depleted       bool        `json:"depleted,omitempty"`
 }
@@ -456,10 +499,12 @@ func CardsStatus(v *vault.Vault) ([]CardStatus, error) {
 		if u := usage[fingerprint]; u != nil {
 			entry.UsedUSD = u.USD
 			entry.UsedCount = u.Count
+			entry.InFlight = u.InFlight
 			entry.PerMonths = u.PerMonths
 		}
 		if c.Limit <= 0 {
 			entry.Unlimited = true
+			entry.Remaining = 0
 		} else {
 			entry.Remaining = roundCents(c.Limit - entry.UsedUSD)
 			if entry.Remaining < minCost {
@@ -575,6 +620,17 @@ func mergeCards(v *vault.Vault, existing, incoming []card, inherit bool) (int, e
 		if inherit && c.Limit <= 0 {
 			return 0, fmt.Errorf("card ending %s: 初始额度必填且必须大于 0", cardTail(c))
 		}
+		// add 分支拒绝同号卡 re-add,因为老卡的 UsedUSD 聚合依赖同一张卡的
+		// 历史 record;一旦 Limit 被静默覆盖,操作员看到"又能刷"但实际 Used
+		// 还在跑。要调整额度请走显式的 remove + add,或者直接改库(操作员
+		// 工具,带审计)。
+		if inherit {
+			for i := range merged {
+				if merged[i].Number == c.Number {
+					return 0, fmt.Errorf("card ending %s: 已存在同号卡,如需调整请先移除原卡", cardTail(c))
+				}
+			}
+		}
 		replaced := false
 		for i := range merged {
 			if merged[i].Number == c.Number {
@@ -624,7 +680,7 @@ func inheritBilling(c card, base card) card {
 
 // RemoveCardRecord deletes the card ending in the given last four digits.
 func RemoveCardRecord(v *vault.Vault, last4 string) (int, error) {
-	if !regexp.MustCompile(`^[0-9]{4}$`).MatchString(last4) {
+	if !cardLast4Re.MatchString(last4) {
 		return 0, errors.New("--last4 must be exactly four digits")
 	}
 	cards, err := readCards(v)

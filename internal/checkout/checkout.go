@@ -65,6 +65,10 @@ func save(v *vault.Vault, r *Record) error {
 	if e != nil {
 		return e
 	}
+	// 每次 Record 落盘都可能改变 CardFingerprint/Status/Amount,
+	// 让下一个 aggregateCardUsage 重新算,避免热路径的 10s cache
+	// 盖住一笔刚 pin 卡的 in-flight 订单。
+	invalidateUsageCache()
 	return v.Put("checkout:"+r.RecipientID, b)
 }
 func Run(ctx context.Context, v *vault.Vault, user string, pay bool, port, months int) (*Record, error) {

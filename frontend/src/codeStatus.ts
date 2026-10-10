@@ -9,13 +9,18 @@ export const codeStatus: Record<
   revoked: { label: "已停用", color: "default" },
 };
 
-// Fixed Stripe payment cost per subscription duration (USD).
-// 3 月 Premium = $2.45,6 月 Premium = $4.95.
-export const costUSD: Record<number, number> = { 3: 2.45, 6: 4.95 };
-
-export function formatCost(months: number): string {
-  const v = costUSD[months];
-  return v === undefined ? "" : `$${v.toFixed(2)}`;
+// 用后端返回的 catalog 价格 map (minor units,如 {3:245, 6:495}) 格式化成本。
+// 回退时无 price 返回空串,admin.tsx 由此决定要不要显示成本列。
+export function formatCost(
+  months: number,
+  planPrices: Record<string, number> | Record<number, number> | undefined,
+): string {
+  if (!planPrices) return "";
+  const minor =
+    (planPrices as Record<string, number>)[String(months)] ??
+    (planPrices as Record<number, number>)[months];
+  if (typeof minor !== "number" || !Number.isFinite(minor) || minor <= 0) return "";
+  return `$${(minor / 100).toFixed(2)}`;
 }
 
 // 套餐短名,面向后台展示。3 月 = 季卡,6 月 = 半年卡。
