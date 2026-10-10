@@ -37,5 +37,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: xgift-linux-amd64
-          path: bin/
+          path: |
+            bin/
+            web-redeem/
           if-no-files-found: error

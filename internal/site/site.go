@@ -492,21 +492,18 @@ func (s *server) asset(name, kind string) http.HandlerFunc {
 			nonce, _ := r.Context().Value(nonceContextKey{}).(string)
 			b = bytes.ReplaceAll(b, []byte("__XGIFT_NONCE__"), []byte(nonce))
 		}
-		// When the admin surface sits behind a secret prefix, rewrite the
-		// bundle's baked-in admin paths on the way out; the compressed copy
-		// cannot be rewritten, so it is skipped for admin.js.
-		skipGzip := false
+		// The admin page learns its secret path from admin.html; admin.js
+		// prefixes /api/admin/ requests with it at runtime.
 		if s.adminBase != "" {
 			switch name {
 			case "admin.html":
 				b = bytes.ReplaceAll(b, []byte("/admin.js"), []byte(s.adminBase+"/admin.js"))
+				b = bytes.ReplaceAll(b, []byte("__XGIFT_ADMIN_BASE__"), []byte(strconv.Quote(s.adminBase)))
 			case "admin.js":
-				b = bytes.ReplaceAll(b, []byte(`"/api/admin/`), []byte(`"`+s.adminBase+`/api/admin/`))
 				b = bytes.ReplaceAll(b, []byte(`"/admin"`), []byte(`"`+s.adminBase+`/admin"`))
-				skipGzip = true
 			}
 		}
-		if strings.HasSuffix(name, ".js") && !skipGzip {
+		if strings.HasSuffix(name, ".js") {
 			w.Header().Set("Vary", "Accept-Encoding")
 			if acceptsGzip(r.Header.Get("Accept-Encoding")) {
 				if compressed, err := assets.ReadFile("assets/" + name + ".gz"); err == nil {

@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>X Premium 兑换 · 蓝V自助开通</title>
+<style>
+:root{
+  --ink:#0f1419;          /* X 主黑 */
+  --ink-soft:#536471;     /* X 次级灰 */
+  --line:#eff3f4;         /* X 分割线 */
+  --blue:#1d9bf0;         /* X 蓝 */
+  --blue-dark:#1a8cd8;
+  --blue-soft:#e8f5fd;
+  --bg:#ffffff;
+  --card-radius:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  color:var(--ink);background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ============ 顶部导航 ============ */
+.nav{
+  position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
+}
+.nav-inner{
+  max-width:1200px;margin:0 auto;height:64px;padding:0 24px;
+  display:flex;align-items:center;gap:14px;
+}
+.logo-mark{
+  width:40px;height:40px;border-radius:10px;background:var(--ink);
+  display:flex;align-items:center;justify-content:center;flex:none;
+}
+.logo-mark svg{width:20px;height:20px;fill:#fff}
+.logo-text{line-height:1.15}
+.logo-text .name{font-size:17px;font-weight:800;letter-spacing:-.2px}
+.logo-text .sub{font-size:12px;color:var(--ink-soft)}
+.nav-links{margin-left:auto;display:flex;align-items:center;gap:6px}
+.nav-links a{
+  color:var(--ink);text-decoration:none;font-size:14px;font-weight:600;
+  padding:8px 13px;border-radius:999px;transition:background .15s;
+}
+.nav-links a:hover{background:var(--line)}
+.nav-links a.cta{
+  background:var(--blue-soft);color:var(--blue-dark);
+  display:flex;align-items:center;gap:6px;
+}
+.nav-links a.cta:hover{background:#d7ecfb}
+.nav-links a.cta svg{width:15px;height:15px;fill:var(--blue-dark)}
+
+/* ============ 主区 ============ */
+.hero{
+  max-width:1200px;margin:0 auto;padding:64px 24px 40px;
+  display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:start;
+}
+.eyebrow{
+  display:flex;align-items:center;gap:8px;
+  color:var(--ink-soft);font-size:14px;font-weight:600;margin-bottom:18px;
+}
+.eyebrow::before{
+  content:"";width:8px;height:8px;border-radius:50%;background:var(--blue);
+}
+h1{
+  font-size:46px;line-height:1.16;font-weight:800;letter-spacing:-.8px;
+}
+h1 .hl{color:var(--blue);display:block}
+.lede{
+  margin-top:20px;font-size:17px;line-height:1.8;color:var(--ink-soft);max-width:30em;
+}
+.steps-hint{
+  margin-top:26px;display:inline-flex;align-items:center;gap:8px;
+  font-size:14px;color:var(--ink-soft);font-weight:600;
+  border-bottom:1px dashed var(--line);padding-bottom:4px;cursor:pointer;
+}
+.steps-hint .arr{transition:transform .2s}
+.steps-hint:hover .arr{transform:translateY(3px)}
+
+/* 礼品插画 */
+.art{
+  margin:44px auto 8px;width:230px;position:relative;
+  animation:float 5s ease-in-out infinite;
+}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+/* 权益卖点 */
+.perks{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px 22px;margin-top:44px;
+}
+.perk{display:flex;align-items:center;gap:10px;font-size:14.5px;font-weight:600}
+.perk .pi{
+  width:34px;height:34px;border-radius:10px;background:var(--blue-soft);
+  display:flex;align-items:center;justify-content:center;flex:none;
+}
+.perk .pi svg{width:17px;height:17px;fill:var(--blue-dark)}
+
+/* ============ 兑换卡片 ============ */
+.card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--card-radius);
+  box-shadow:0 10px 40px rgba(15,20,25,.07),0 2px 10px rgba(15,20,25,.04);
+  padding:28px;position:sticky;top:88px;
+}
+.card-head{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.card-head .m{
+  width:44px;height:44px;border-radius:12px;background:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+}
+.card-head .m svg{width:22px;height:22px;fill:#fff}
+.card-head .t{font-size:17px;font-weight:800}
+
+/* 三步进度条 */
+.progress{
+  display:flex;align-items:center;gap:0;margin:6px 0 24px;
+}
+.p-step{display:flex;align-items:center;gap:9px;flex:none}
+.p-dot{
+  width:26px;height:26px;border-radius:50%;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:800;
+  background:var(--line);color:var(--ink-soft);transition:all .25s;
+}
+.p-step.active .p-dot{background:var(--blue);color:#fff}
+.p-step.done .p-dot{background:var(--ink);color:#fff}
+.p-label{font-size:13px;font-weight:700;color:var(--ink-soft)}
+.p-step.active .p-label{color:var(--ink)}
+.p-line{flex:1;height:2px;background:var(--line);margin:0 10px;border-radius:2px}
+
+/* 步骤内容 */
+.panel h2{font-size:22px;font-weight:800;letter-spacing:-.3px}
+.panel .desc{margin-top:8px;font-size:14px;line-height:1.7;color:var(--ink-soft)}
+label.f{
+  display:block;font-size:13.5px;font-weight:700;margin:20px 0 8px;
+}
+.field{
+  width:100%;padding:15px 16px;font-size:15px;color:var(--ink);
+  background:#f7f9f9;border:1.5px solid transparent;border-radius:12px;
+  outline:none;transition:all .15s;font-family:inherit;
+}
+.field::placeholder{color:#8b98a5;letter-spacing:.5px}
+.field:focus{background:#fff;border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,155,240,.15)}
+.btn{
+  width:100%;margin-top:20px;padding:15px;border:none;border-radius:999px;
+  background:var(--ink);color:#fff;font-size:15.5px;font-weight:800;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .15s;font-family:inherit;
+}
+.btn:hover{background:#272c30;transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn .arr{transition:transform .15s}
+.btn:hover .arr{transform:translateX(3px)}
+.btn.blue{background:var(--blue)}
+.btn.blue:hover{background:var(--blue-dark)}
+.btn:disabled{background:#cfd9de;cursor:not-allowed;transform:none}
+
+.mini{
+  margin-top:14px;font-size:12.5px;line-height:1.7;color:#8b98a5;
+}
+.card-foot{
+  margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;justify-content:center;gap:8px;align-items:center;
+  font-size:13px;color:var(--ink-soft);
+}
+.card-foot a{color:var(--ink-soft);text-decoration:none;font-weight:600}
+.card-foot a:hover{color:var(--blue)}
+.card-foot .dot{color:#cfd9de}
+
+/* 账号确认块 */
+.account{
+  display:none;margin-top:16px;padding:14px 16px;border-radius:14px;
+  background:var(--blue-soft);border:1px solid #cfeafd;
+  align-items:center;gap:12px;
+}
+.account.show{display:flex}
+.account .av{
+  width:42px;height:42px;border-radius:50%;background:var(--ink);flex:none;
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:17px;
+}
+.account .who{line-height:1.3}
+.account .who .n{font-weight:800;font-size:15px}
+.account .who .h{font-size:12.5px;color:var(--ink-soft)}
+.account .ok{margin-left:auto;color:var(--blue);font-weight:800;font-size:13px;
+  display:flex;align-items:center;gap:5px}
+.account .ok svg{width:15px;height:15px;fill:var(--blue)}
+
+/* 套餐选择 */
+.plans{display:grid;gap:10px;margin-top:18px}
+.plan{
+  display:flex;align-items:center;gap:14px;
+  border:2px solid var(--line);border-radius:14px;padding:15px 16px;
+  cursor:pointer;transition:all .15s;
+}
+.plan:hover{border-color:#d7e6ee}
+.plan.sel{border-color:var(--blue);background:var(--blue-soft)}
+.plan .radio{
+  width:20px;height:20px;border-radius:50%;border:2px solid #cfd9de;flex:none;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.plan.sel .radio{border-color:var(--blue);background:var(--blue)}
+.plan.sel .radio::after{content:"";width:8px;height:8px;border-radius:50%;background:#fff}
+.plan .info{flex:1}
+.plan .info .t{font-weight:800;font-size:15px}
+.plan .info .s{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.plan .tag{
+  font-size:11.5px;font-weight:800;color:var(--blue-dark);
+  background:var(--blue-soft);border-radius:999px;padding:4px 10px;
+}
+.plan.sel .tag{background:#fff}
+
+/* 卡密验证提示条 */
+.codebox{
+  display:none;margin-top:14px;padding:14px 16px;border-radius:14px;
+  background:#e8f8ee;border:1px solid #bfe8cd;align-items:center;gap:12px;
+}
+.codebox.show{display:flex;animation:pop .25s ease}
+.codebox.err{background:#fdecec;border-color:#f7c4c4}
+.codebox.warn{background:#fff7e8;border-color:#f3ddb0}
+@keyframes pop{from{transform:translateY(4px);opacity:0}to{transform:none;opacity:1}}
+.cb-icon{
+  width:34px;height:34px;border-radius:50%;background:#2db55d;color:#fff;flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;
+}
+.codebox.err .cb-icon{background:#e5484d}
+.codebox.warn .cb-icon{background:#d29922}
+.cb-txt{line-height:1.35}
+.cb-t{font-weight:800;font-size:14.5px}
+.cb-s{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.cb-plan{color:#1a8b48}
+
+/* 套餐提示徽章(步骤2) */
+.planbadge{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:18px;padding:14px 16px;border-radius:14px;
+  background:var(--blue-soft);border:1px solid #cfeafd;
+}
+.planbadge .pb-l{
+  display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;
+  color:var(--ink-soft);
+}
+.planbadge .pb-l svg{width:16px;height:16px;fill:var(--blue)}
+.planbadge .pb-r{font-size:16px;font-weight:800;color:var(--blue-dark)}
+
+/* 步骤 3 完成 */
+.result{display:none;margin-top:18px}
+.result.show{display:block}
+.pbar{
+  height:8px;border-radius:99px;background:var(--line);overflow:hidden;
+}
+.pbar i{
+  display:block;height:100%;width:0%;border-radius:99px;
+  background:linear-gradient(90deg,var(--blue),#57b8f5);
+  transition:width .6s cubic-bezier(.2,.8,.2,1);
+}
+.pmsg{margin-top:10px;font-size:13.5px;font-weight:600;color:var(--ink-soft)}
+.done-box{
+  display:none;text-align:center;padding:26px 10px 12px;
+}
+.done-box.show{display:block}
+.done-box .big{
+  width:64px;height:64px;border-radius:50%;background:var(--blue-soft);
+  margin:0 auto 16px;display:flex;align-items:center;justify-content:center;
+}
+.done-box .big svg{width:32px;height:32px;fill:var(--blue)}
+.done-box h3{font-size:19px;font-weight:800}
+.done-box p{margin-top:8px;font-size:13.5px;color:var(--ink-soft);line-height:1.7}
+.done-actions{display:flex;gap:10px;margin-top:22px}
+.done-actions:empty{display:none}
+.done-actions .btn{margin-top:0;flex:1}
+.btn.ghost{background:#fff;color:var(--ink);border:1.5px solid #cfd9de}
+.btn.ghost:hover{background:#f7f9f9;border-color:#b9c4cb}
+
+/* ============ 三步图文 ============ */
+.section{max-width:1200px;margin:0 auto;padding:72px 24px 24px}
+.section .kicker{
+  text-align:center;color:var(--blue);font-size:14px;font-weight:800;
+  letter-spacing:.6px;margin-bottom:12px;
+}
+.section h2{text-align:center;font-size:32px;font-weight:800;letter-spacing:-.5px}
+.section .sub{
+  text-align:center;color:var(--ink-soft);font-size:15px;margin-top:12px;
+}
+.how{
+  margin-top:44px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;
+}
+.how .item{
+  background:#f7f9f9;border-radius:var(--card-radius);padding:26px;
+  transition:transform .2s, box-shadow .2s;
+}
+.how .item:hover{transform:translateY(-3px);box-shadow:0 10px 30px rgba(15,20,25,.07)}
+.how .num{
+  font-size:13px;font-weight:800;color:var(--blue);letter-spacing:1px;
+}
+.how .item h3{font-size:17px;font-weight:800;margin-top:10px}
+.how .item p{margin-top:10px;font-size:13.5px;line-height:1.8;color:var(--ink-soft)}
+
+/* FAQ */
+.faq{margin-top:40px;max-width:760px;margin-left:auto;margin-right:auto}
+.qa{
+  border-bottom:1px solid var(--line);
+}
+.qa summary{
+  list-style:none;cursor:pointer;padding:20px 4px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  font-size:15.5px;font-weight:700;
+}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary .plus{
+  width:26px;height:26px;border-radius:50%;background:var(--line);flex:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:800;color:var(--ink-soft);
+  transition:transform .2s;
+}
+.qa[open] summary .plus{transform:rotate(45deg);background:var(--blue-soft);color:var(--blue)}
+.qa .a{
+  padding:0 4px 20px;font-size:14px;line-height:1.85;color:var(--ink-soft);
+}
+
+/* Footer */
+footer{
+  margin-top:72px;border-top:1px solid var(--line);
+  padding:36px 24px 48px;text-align:center;
+}
+footer .f-logo{
+  display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:15px;
+}
+footer .f-logo .logo-mark{width:28px;height:28px;border-radius:8px}
+footer .f-logo .logo-mark svg{width:14px;height:14px}
+footer .fine{
+  margin-top:14px;font-size:12.5px;color:#8b98a5;line-height:1.9;
+}
+footer .top{
+  display:inline-block;margin-top:18px;font-size:13px;font-weight:700;
+  color:var(--ink-soft);text-decoration:none;
+}
+footer .top:hover{color:var(--blue)}
+
+/* 人机验证弹窗 */
+[hidden]{display:none !important}
+.hv-mask{
+  position:fixed;inset:0;z-index:90;background:rgba(15,20,25,.45);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  animation:hvfade .18s ease;
+}
+@keyframes hvfade{from{opacity:0}to{opacity:1}}
+.hv-card{
+  width:100%;max-width:360px;background:#fff;border-radius:20px;
+  padding:24px;box-shadow:0 24px 64px rgba(15,20,25,.28);
+  animation:pop .25s ease;
+}
+.hv-card h3{font-size:17px;font-weight:800}
+.hv-card .hv-desc{margin-top:6px;font-size:13px;line-height:1.7;color:var(--ink-soft)}
+.hv-slot{margin-top:16px;min-height:65px;display:flex;justify-content:center}
+.hv-err{
+  margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px;
+  background:#fdecec;border:1px solid #f7c4c4;color:#a32b30;
+}
+.hv-actions{margin-top:16px}
+.hv-actions .btn{margin-top:0}
+
+/* 批量兑换 */
+.crow{border:1.5px solid var(--line);border-radius:14px;padding:14px;margin-top:12px;transition:border-color .15s,background .15s}
+.crow.ok{border-color:#bfe8cd;background:#f4fbf6}
+.crow.bad{border-color:#f7c4c4;background:#fdf5f5}
+.crow-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.crow-no{font-size:12.5px;font-weight:800;color:var(--ink-soft)}
+.crow-del{border:none;background:none;color:#8b98a5;font-size:12.5px;font-weight:700;cursor:pointer;padding:2px 4px;font-family:inherit}
+.crow-del:hover{color:#e5484d}
+.crow .st{font-size:12.5px;line-height:1.5;color:var(--ink-soft);margin-top:6px;display:none}
+.crow.ok .st,.crow.bad .st{display:block}
+.crow.ok .st{color:#1a8b48}
+.crow.bad .st{color:#a32b30}
+.notice{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px;background:#fdecec;border:1px solid #f7c4c4;color:#a32b30}
+.sumrow{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
+.sum-l{display:flex;align-items:center;gap:10px;min-width:0}
+.sum-no{width:22px;height:22px;border-radius:50%;background:var(--blue-soft);color:var(--blue-dark);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.sum-code{font-family:monospace;font-size:12.5px;overflow-wrap:anywhere}
+.sum-user{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.sum-r{font-size:13px;font-weight:800;color:var(--blue-dark);flex:none}
+.sum-total{margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:var(--ink-soft)}
+.job{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
+.job.ok{border-color:#bfe8cd}
+.job.bad{border-color:#f7c4c4}
+.job.warn{border-color:#f3ddb0}
+.job-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.job-code{font-family:monospace;font-size:12.5px;overflow-wrap:anywhere}
+.job-user{font-size:12.5px;color:var(--ink-soft)}
+.job-ic{margin-left:auto;font-size:13px}
+.job.ok .job-ic{color:#2db55d}
+.job.bad .job-ic{color:#e5484d}
+.job.warn .job-ic{color:#d29922}
+.pbar.sm{height:6px}
+.job-msg{margin-top:8px;font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+#jobRows{margin-top:14px}
+.urow{border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px}
+.urow.bad{border-color:#f7c4c4;background:#fdf5f5}
+.urow-code{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.urow-code b{width:22px;height:22px;border-radius:50%;background:var(--blue-soft);color:var(--blue-dark);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.urow-code span{font-family:monospace;font-size:12.5px;overflow-wrap:anywhere}
+.urow-code i{font-style:normal;font-size:12px;font-weight:700;color:var(--blue-dark);margin-left:auto;flex:none}
+.urow .st{font-size:12.5px;color:#a32b30;margin-top:6px;display:none}
+.urow.bad .st{display:block}
+.urow.ok{border-color:#bfe8cd;background:#f4fbf6}
+.urow.ok .st{display:block;color:#1a8b48}
+.urow-inputs{display:flex;gap:8px;align-items:stretch}
+.urow-inputs .field{flex:1;min-width:0}
+.urow-check{flex:none;width:auto;margin-top:0;padding:0 16px;border-radius:12px;font-size:13.5px;white-space:nowrap}
+.urow-check.ok{border-color:#2db55d;color:#1a8b48}
+.urow-check:disabled{opacity:.7}
+
+@media(max-width:960px){
+  .hero{grid-template-columns:1fr;gap:40px;padding-top:36px}
+  h1{font-size:34px}
+  .card{position:static}
+  .how{grid-template-columns:1fr}
+  .nav-links a:not(.cta){display:none}
+  .art{width:180px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 导航 ============ -->
+<header class="nav">
+  <div class="nav-inner">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.3 19.5h2.04L6.49 3.24H4.3l13.3 17.4Z"/></svg>
+    </div>
+    <div class="logo-text">
+      <div class="name">X Premium 兑换</div>
+      <div class="sub">蓝V会员自助开通</div>
+    </div>
+    <nav class="nav-links">
+      <a href="#how">如何领取</a>
+      <a href="#faq">常见问题</a>
+      <a class="cta" href="#redeem">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5Zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14Z"/></svg>
+        查询结果</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ 主区 ============ -->
+<main class="hero" id="redeem">
+  <div class="left">
+    <div class="eyebrow">让发帖,多一点超能力</div>
+    <h1>你的 X Premium,<span class="hl">在这里开通。</span></h1>
+    <p class="lede">
+      输入购买商家提供的卡密,<br>
+      开通到你自己的 X 账号。
+    </p>
+    <a class="steps-hint" href="#how">第一次兑换?查看操作步骤 <span class="arr">↓</span></a>
+
+    <!-- 礼品插画(X 主题) -->
+    <div class="art">
+      <svg viewBox="0 0 230 210" fill="none">
+        <!-- 礼盒 -->
+        <rect x="45" y="95" width="140" height="100" rx="14" fill="#0f1419"/>
+        <rect x="45" y="95" width="140" height="30" rx="14" fill="#1d9bf0"/>
+        <rect x="45" y="110" width="140" height="15" fill="#1d9bf0"/>
+        <!-- 丝带 -->
+        <rect x="107" y="95" width="16" height="100" fill="#1d9bf0"/>
+        <!-- 蝴蝶结 -->
+        <path d="M115 95c-18-30-58-26-52 2 6 22 34 8 52-2Z" fill="#1d9bf0"/>
+        <path d="M115 95c18-30 58-26 52 2-6 22-34 8-52-2Z" fill="#57b8f5"/>
+        <circle cx="115" cy="95" r="13" fill="#0f1419"/>
+        <path d="M120.15 88.2h2.84l-6.2 7.09L124 97.95h-5.72l-4.48-5.86-5.12 5.86h-2.83l6.63-7.58-6.3-8.37h5.86l4.04 5.35 4.67-5.35Z" fill="#fff" transform="translate(-11.5 5) scale(.92)"/>
+      </svg>
+    </div>
+
+    <!-- 权益卖点 -->
+    <div class="perks">
+      <div class="perk">
+        <span class="pi"><svg viewBox="0 0 24 24"><path d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81C14.67 2.63 13.43 1.75 12 1.75s-2.67.88-3.34 2.19c-1.39-.46-2.9-.2-3.91.81s-1.27 2.52-.81 3.91C2.63 9.33 1.75 10.57 1.75 12s.88 2.67 2.19 3.34c-.46 1.39-.2 2.9.81 3.91s2.52 1.27 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.67-.88 3.34-2.19c1.39.46 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34Zm-11.71 4.2-3.3-3.3 1.41-1.41 1.89 1.88 4.89-4.89 1.41 1.41-6.3 6.31Z"/></svg></span>
+        蓝色认证标识
+      </div>
+      <div class="perk">
+        <span class="pi"><svg viewBox="0 0 24 24"><path d="M21.7 8.24 12 3.27 2.3 8.24v7.52L12 20.73l9.7-4.97V8.24ZM12 6.06l5.9 3.02L12 12.1 6.1 9.08 12 6.06ZM4.85 10.28l6.4 3.28v4.5l-6.4-3.28v-4.5Zm8.9 7.78v-4.5l6.4-3.28v4.5l-6.4 3.28Z"/></svg></span>
+        推文编辑修改
+      </div>
+      <div class="perk">
+        <span class="pi"><svg viewBox="0 0 24 24"><path d="M12 2 9.7 8.6 3 10.9l5 4.8L6.7 22 12 18.4 17.3 22 16 15.7l5-4.8-6.7-2.3L12 2Z"/></svg></span>
+        Grok 智能助手
+      </div>
+      <div class="perk">
+        <span class="pi"><svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3Zm4 14h2V9H7v8Zm4 0h2V5h-2v12Zm4 0h2v-6h-2v6Z"/></svg></span>
+        创作者收益分成
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 兑换卡片 ============ -->
+  <aside class="card">
+    <div class="card-head">
+      <div class="m"><svg viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.3 19.5h2.04L6.49 3.24H4.3l13.3 17.4Z"/></svg></div>
+      <div class="t">X Premium 兑换</div>
+    </div>
+
+    <!-- 三步进度 -->
+    <div class="progress">
+      <div class="p-step active" id="ps1">
+        <div class="p-dot">1</div><div class="p-label">验证卡密</div>
+      </div>
+      <div class="p-line"></div>
+      <div class="p-step" id="ps2">
+        <div class="p-dot">2</div><div class="p-label">输入账号</div>
+      </div>
+      <div class="p-line"></div>
+      <div class="p-step" id="ps3">
+        <div class="p-dot">3</div><div class="p-label">确认开通</div>
+      </div>
+    </div>
+
+    <!-- 步骤 1:卡密(支持单个或多个) -->
+    <section class="panel" id="panel1">
+      <h2>输入兑换卡密</h2>
+      <p class="desc">粘贴购买商家提供的卡密;单个或多个均可,多个请每行一个,最多 5 个。</p>
+      <label class="f" for="codes">兑换卡密</label>
+      <textarea class="field" id="codes" rows="2" placeholder="xPP-…(可输入单个或多个,每行一个)" autocomplete="off" spellcheck="false" style="font-family:monospace;font-size:14px;resize:vertical"></textarea>
+      <div class="codebox" id="codebox">
+        <div class="cb-icon" id="cbIcon">✓</div>
+        <div class="cb-txt">
+          <div class="cb-t" id="cbTitle">卡密有效</div>
+          <div class="cb-s" id="cbSub">已匹配套餐,点下方按钮继续</div>
+        </div>
+      </div>
+      <button class="btn" id="btn1">验证卡密并继续 <span class="arr">→</span></button>
+      <p class="mini">已兑换的卡密也可在这里查询原结果,无需重复开通。账号已有 Premium,请等会员到期后再领取。</p>
+    </section>
+
+    <!-- 步骤 2:逐张填写用户名 -->
+    <section class="panel" id="panel2" style="display:none">
+      <h2>输入 X 用户名</h2>
+      <p class="desc">按顺序为每个兑换码填写要开通的 X 用户名(不是显示名称)。</p>
+      <div id="userFields"></div>
+      <div class="notice" id="notice2" style="display:none"></div>
+      <button class="btn blue" id="btn2">确认并开通 <span class="arr">→</span></button>
+      <button class="btn ghost" id="btnBack1" type="button">返回修改卡密</button>
+      <p class="mini">一个 X 账号同一时间只能接收一次赠送,重复账号无法提交;多张兑换码会依序排队处理。</p>
+    </section>
+
+    <!-- 步骤 3:进度/结果 -->
+    <section class="panel" id="panel3" style="display:none">
+      <h2 id="p3title">正在开通…</h2>
+      <p class="desc" id="p3desc">正在为你完成赠送,请勿关闭本页。</p>
+      <div class="result show" id="progressBox">
+        <div class="pbar"><i id="pbarFill"></i></div>
+        <div class="pmsg" id="pmsg">正在准备…</div>
+        <div id="jobRows"></div>
+      </div>
+      <div class="done-box" id="doneBox">
+        <div class="big"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.2 14.5-4.2-4.2 1.4-1.4 2.8 2.8 6-6 1.4 1.4-7.4 7.4Z"/></svg></div>
+        <h3 id="doneTitle">开通成功 🎉</h3>
+        <p id="doneDesc">已为 @user 完成 3 个月 Premium 赠送。打开 X App 即可看到蓝V。</p>
+        <div class="done-actions" id="doneActions"></div>
+      </div>
+    </section>
+
+    <div class="card-foot">
+      <a href="#">查询开通结果</a><span class="dot">·</span>
+      <a href="#how">详细教程</a><span class="dot">·</span>
+      <a href="#faq">遇到问题</a>
+    </div>
+  </aside>
+</main>
+
+<!-- ============ 三步 ============ -->
+<section class="section" id="how">
+  <div class="kicker">领取流程</div>
+  <h2>跟着页面,完成三步</h2>
+  <p class="sub">第一次兑换?这样操作就好。</p>
+  <div class="how">
+    <div class="item">
+      <div class="num">01</div>
+      <h3>粘贴商家给你的卡密</h3>
+      <p>先验证卡密,查看对应的套餐时长和开通条件。卡密可在原订单或商家消息中找到。</p>
+    </div>
+    <div class="item">
+      <div class="num">02</div>
+      <h3>输入自己的 X 账号</h3>
+      <p>填写要开通的用户名(@ 后面的部分)。系统会先检查该账号是否可以接收赠送。</p>
+    </div>
+    <div class="item">
+      <div class="num">03</div>
+      <h3>确认开通,查看结果</h3>
+      <p>确认账号与套餐后提交,等待开通结果;成功后打开 X App 查看蓝V 是否生效。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="section" id="faq" style="padding-top:64px">
+  <div class="kicker">FAQ</div>
+  <h2>你可能还想知道</h2>
+  <div class="faq">
+    <details class="qa">
+      <summary>我要用哪个账号?已经有 Premium 还能领取吗?<span class="plus">+</span></summary>
+      <div class="a">填写要接收赠送的 X 用户名即可,不需要提供密码。账号已有 Premium 的,请等会员到期后再领取;一个账号同一时间只能接收一次赠送。</div>
+    </details>
+    <details class="qa">
+      <summary>显示处理中,或者关闭了页面怎么办?<span class="plus">+</span></summary>
+      <div class="a">处理过程中请保持页面打开。如果关闭了,用同一卡密在「查询结果」里输入卡密即可查询原订单进度,不会重复扣次数。</div>
+    </details>
+    <details class="qa">
+      <summary>卡密不能用,或开通后没有蓝V,找谁处理?<span class="plus">+</span></summary>
+      <div class="a">回到购买订单联系商家,附上订单号和卡密。若已提交但未到账,商家可以在管理端「手动补单」重新处理,无需重新购买。</div>
+    </details>
+    <details class="qa">
+      <summary>开通需要多久?<span class="plus">+</span></summary>
+      <div class="a">一般 20 秒左右完成。遇到支付通道繁忙时会稍长,页面会实时显示进度;超过几分钟未完成会自动转入人工核实。</div>
+    </details>
+    <details class="qa">
+      <summary>这是 X 官方网站吗?<span class="plus">+</span></summary>
+      <div class="a">不是。本站是独立运营的自助开通服务,通过官方赠送通道完成开通。X 品牌及相关权益归其权利人所有。</div>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="f-logo">
+    <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.3 19.5h2.04L6.49 3.24H4.3l13.3 17.4Z"/></svg></div>
+    X Premium 兑换
+  </div>
+  <div class="fine">
+    独立运营的自助开通服务。<br>
+    X 品牌及相关权益归其权利人所有。
+  </div>
+  <a class="top" href="#">返回顶部 ↑</a>
+</footer>
+
+<!-- ============ 人机验证弹窗 ============ -->
+<div class="hv-mask" id="hvMask" hidden>
+  <div class="hv-card" role="dialog" aria-modal="true" aria-labelledby="hvTitle">
+    <h3 id="hvTitle">人机验证</h3>
+    <p class="hv-desc">请完成 Cloudflare 安全验证,通过后会自动继续刚才的操作。</p>
+    <div class="hv-slot" id="hvSlot"></div>
+    <div class="hv-err" id="hvErr" hidden></div>
+    <div class="hv-actions"><button class="btn ghost" id="hvCancel" type="button">取消</button></div>
+  </div>
+</div>
+
+<script>
+/* ====== X Premium 兑换 · 前端逻辑 ======
+   同域部署时走真实接口:
+     POST /api/code-info  {code}                → 只读验码,返回套餐
+     POST /api/redeem     {code, username}      → 提交兑换
+     POST /api/status     {code, username}      → 轮询进度
+   file:// 预览(跨域被拦)时自动降级为演示数据。 */
+const $ = id => document.getElementById(id);
+let months = 3;
+let CODE = '';
+/* 本地预览(file:// 或 localhost)启用演示数据,线上不受影响 */
+const DEMO = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+/* —— Cloudflare 人机验证(Turnstile,点击时才加载) —— */
+let tsScript = null, tsKey = null;
+function loadTurnstile(){
+  if(window.turnstile) return Promise.resolve(window.turnstile);
+  if(tsScript) return tsScript;
+  tsScript = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true;
+    const timer = setTimeout(()=>{ s.remove(); tsScript = null; reject(new Error('验证组件加载超时,请检查网络后重试。')); }, 15000);
+    s.onload = ()=>{ clearTimeout(timer); window.turnstile ? resolve(window.turnstile) : (tsScript = null, reject(new Error('验证组件加载失败,请检查网络后重试。'))); };
+    s.onerror = ()=>{ clearTimeout(timer); s.remove(); tsScript = null; reject(new Error('验证组件加载失败,请检查网络后重试。')); };
+    document.head.appendChild(s);
+  });
+  return tsScript;
+}
+async function humanToken(action){
+  if(DEMO) return '';
+  if(tsKey === null){
+    let c;
+    try{
+      const r = await fetch('/api/security', {cache:'no-store'});
+      if(!r.ok) throw 0;
+      c = await r.json();
+    }catch(e){ throw new Error('暂时无法加载人机验证,请稍后重试。'); }
+    if(c.turnstile_enabled === false) tsKey = '';
+    else if(c.turnstile_enabled === true && c.turnstile_site_key) tsKey = c.turnstile_site_key;
+    else throw new Error('人机验证配置不可用,请稍后重试。');
+  }
+  if(!tsKey) return '';
+  const api = await loadTurnstile();
+  return new Promise((resolve, reject)=>{
+    const mask = $('hvMask'), slot = $('hvSlot'), err = $('hvErr'), cancel = $('hvCancel');
+    let widget = null, done = false;
+    mask.hidden = false;
+    err.hidden = true;
+    slot.innerHTML = '';
+    const timer = setTimeout(()=>fail('人机验证超时,请重试。'), 120000);
+    function cleanup(){
+      mask.hidden = true;
+      try{ widget && api.remove(widget); }catch(e){}
+      slot.innerHTML = '';
+      cancel.onclick = null;
+    }
+    function ok(token){ if(done) return; done = true; clearTimeout(timer); cleanup(); resolve(token); }
+    function fail(msg){ if(done) return; done = true; clearTimeout(timer); cleanup(); reject(new Error(msg)); }
+    cancel.onclick = ()=>fail('已取消人机验证。');
+    widget = api.render(slot, {
+      sitekey: tsKey,
+      action: action,
+      theme: 'auto',
+      size: window.innerWidth < 380 ? 'compact' : 'flexible',
+      'response-field': false,
+      callback: ok,
+      'error-callback': ()=>fail('验证未能完成,请重试。'),
+      'expired-callback': ()=>{ err.hidden = false; err.textContent = '验证已过期,请重新验证。'; },
+      'timeout-callback': ()=>{ err.hidden = false; err.textContent = '验证超时,请重新验证。'; },
+    });
+  });
+}
+
+/* —— 接口封装(带 demo 降级) —— */
+async function api(path, payload, token){
+  try{
+    const headers = {'Content-Type':'application/json'};
+    if(token) headers['X-Turnstile-Token'] = token;
+    const r = await fetch(path, {
+      method:'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json().catch(()=>({}));
+    return {http:r.status, ...j};
+  }catch(e){
+    /* 仅本地预览时降级为演示数据;线上网络错误如实报错 */
+    if(DEMO) return demoApi(path, payload);
+    return {http:0, message:'网络连接失败,请检查网络后重试。'};
+  }
+}
+function demoApi(path, payload){
+  if(path.includes('code-info')){
+    const c = (payload.code||'').toUpperCase();
+    if(!/^(?:XG-[A-F0-9]{48}|XPP-[A-Z0-9]{16})$/.test(c)) return {http:400, message:'请填写完整兑换码。'};
+    if(c.endsWith('A2')) return {http:200, months:3, status:'succeeded', label:'3 个月 Premium'};
+    return {http:200, months: c.charCodeAt(3)%2 ? 6 : 3, status:'active',
+            label:(c.charCodeAt(3)%2 ? '6':'3') + ' 个月 Premium'};
+  }
+  return {http:200, demo:true};
+}
+
+function setStep(n){
+  ['ps1','ps2','ps3'].forEach((id,i)=>{
+    const el = $(id);
+    el.classList.toggle('active', i+1 === n);
+    el.classList.toggle('done',   i+1 <  n);
+    if(i+1 < n) el.querySelector('.p-dot').textContent = '✓';
+  });
+  $('panel1').style.display = n===1 ? '' : 'none';
+  $('panel2').style.display = n===2 ? '' : 'none';
+  $('panel3').style.display = n===3 ? '' : 'none';
+}
+
+/* —— 卡密输入(单个或多个) —— */
+const MAX_CODES = 5;
+let JOB = []; /* [{code, months, label, user}] */
+function parseCodes(raw){
+  return [...new Set(raw.split(/[\s,;,]+/).map(s=>s.trim().toUpperCase()).filter(Boolean))];
+}
+function codeOk(c){ return /^(?:XG-[A-F0-9]{48}|XPP-[A-Z0-9]{16})$/.test(c); }
+function cleanUser(v){ return v.trim().replace(/^@/,'').toLowerCase(); }
+function userOk(u){ return /^[a-z0-9_]{1,15}$/.test(u); }
+function setNotice(id, msg){
+  const n = $(id);
+  n.textContent = msg || '';
+  n.style.display = msg ? '' : 'none';
+}
+function showCodeBox(cls, icon, title, sub){
+  const box = $('codebox');
+  box.className = 'codebox show' + (cls ? ' ' + cls : '');
+  $('cbIcon').textContent = icon;
+  $('cbTitle').textContent = title;
+  $('cbSub').innerHTML = sub;
+}
+
+$('codes').addEventListener('input', ()=>{ $('codebox').className = 'codebox'; });
+
+/* —— 步骤1:验证卡密(单个或多个) —— */
+$('btn1').addEventListener('click', async ()=>{
+  const codes = parseCodes($('codes').value);
+  if(codes.length === 0){
+    $('codes').focus();
+    showCodeBox('err','!','请先填写兑换码','粘贴卡密,单个或多个均可,多个请每行一个。');
+    return;
+  }
+  if(codes.length > MAX_CODES){
+    showCodeBox('err','!','一次最多 5 个','请减少兑换码数量后重试。');
+    return;
+  }
+  const badIdx = codes.findIndex(c=>!codeOk(c));
+  if(badIdx >= 0){
+    showCodeBox('err','!','第 ' + (badIdx+1) + ' 个格式不正确','兑换码为 xPP- 开头、后接 16 位字符(旧版 XG- 也可)。');
+    return;
+  }
+  $('codes').value = codes.join('\n');
+
+  const btn = $('btn1');
+  btn.disabled = true; btn.innerHTML = '正在验证…';
+
+  let token;
+  try{ token = await humanToken('code-info'); }
+  catch(e){
+    btn.disabled = false; btn.innerHTML = '验证卡密并继续 <span class="arr">→</span>';
+    showCodeBox('err','!','需要完成人机验证',(e && e.message) || '请完成人机验证后重试。');
+    return;
+  }
+
+  let results = null;
+  try{
+    const r = await fetch('/api/code-info-batch', {
+      method: 'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, token ? {'X-Turnstile-Token': token} : {}),
+      body: JSON.stringify({codes}),
+    });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.message || '暂时无法校验兑换码,请稍后重试。');
+    results = j.results || [];
+  }catch(e){
+    if(DEMO){
+      results = codes.map(()=>({ok:true, status:'active', months:3, label:'3 个月 Premium'}));
+    }else{
+      btn.disabled = false; btn.innerHTML = '验证卡密并继续 <span class="arr">→</span>';
+      showCodeBox('err','!','验证失败',(e && e.message) || '网络连接失败,请检查网络后重试。');
+      return;
+    }
+  }
+  btn.disabled = false; btn.innerHTML = '验证卡密并继续 <span class="arr">→</span>';
+
+  const ready = [];
+  for(let i=0;i<codes.length;i++){
+    const res = results[i] || {ok:false, message:'校验结果缺失,请重试。'};
+    if(!res.ok){ showCodeBox('err','!','第 ' + (i+1) + ' 个卡密不可用',(res.message || '兑换码不存在。') + ' 请修正后重试。'); return; }
+    if(res.status === 'succeeded'){ showCodeBox('err','!','第 ' + (i+1) + ' 个卡密已兑换完成','请前往「查询开通结果」查看原订单,无需重复开通。'); return; }
+    if(res.status === 'processing' || res.status === 'review'){ showCodeBox('err','!','第 ' + (i+1) + ' 个卡密正在处理中','请前往「查询开通结果」查看实时进度。'); return; }
+    if(res.status !== 'active'){ showCodeBox('err','!','第 ' + (i+1) + ' 个卡密已停用','请联系提供方。'); return; }
+    ready.push({code: codes[i], months: res.months || 3, label: res.label || ((res.months || 3) + ' 个月 Premium')});
+  }
+  JOB = ready;
+  const total = JOB.reduce((s,it)=>s + it.months, 0);
+  showCodeBox('', '✓', JOB.length + ' 个卡密有效', '合计 ' + total + ' 个月 Premium,请继续填写用户名。');
+  renderUserFields();
+  setStep(2);
+});
+
+/* —— 步骤2:按顺序逐张填写用户名 —— */
+function renderUserFields(){
+  $('userFields').innerHTML = JOB.map((it,i)=>
+    '<div class="urow">' +
+      '<div class="urow-code"><b>' + (i+1) + '</b><span>' + it.code + '</span><i>' + it.label + '</i></div>' +
+      '<div class="urow-inputs">' +
+      '<input class="field urow-user" placeholder="X 用户名(不含 @)" autocomplete="off" spellcheck="false">' +
+      '<button class="btn ghost urow-check" type="button">检测</button>' +
+      '</div>' +
+      '<div class="st"></div>' +
+    '</div>').join('');
+  [...$('userFields').children].forEach((el,i)=>{
+    const reset = ()=>{
+      el.classList.remove('bad','ok');
+      el.dataset.check = '';
+      el.querySelector('.st').textContent = '';
+      const btn = el.querySelector('.urow-check');
+      btn.classList.remove('ok'); btn.disabled = false; btn.textContent = '检测';
+      setNotice('notice2','');
+    };
+    el.querySelector('.urow-user').addEventListener('input', reset);
+    el.querySelector('.urow-check').addEventListener('click', ()=>{ void checkRows([i]); });
+  });
+  $('btn2').innerHTML = '确认并开通 ' + JOB.length + ' 张 <span class="arr">→</span>';
+}
+$('btnBack1').addEventListener('click', ()=>setStep(1));
+
+/* —— 赠送资格检测(每行按钮 + 提交前自动补检,一次人机验证) —— */
+async function checkRows(indices){
+  const rows = [...$('userFields').children];
+  const targets = [];
+  let bad = false;
+  for(const i of indices){
+    const el = rows[i];
+    const input = el.querySelector('.urow-user');
+    const u = cleanUser(input.value);
+    input.value = u;
+    if(!u){ el.classList.add('bad'); el.classList.remove('ok'); el.querySelector('.st').textContent = '请先填写这个账号的用户名。'; bad = true; continue; }
+    if(!userOk(u)){ el.classList.add('bad'); el.classList.remove('ok'); el.querySelector('.st').textContent = '用户名不正确:1–15 位字母、数字或下划线,不是显示名称。'; bad = true; continue; }
+    targets.push({el, u});
+  }
+  if(bad || targets.length === 0) return false;
+  targets.forEach(t=>{
+    t.el.classList.remove('bad','ok');
+    t.el.dataset.check = '';
+    t.el.querySelector('.st').textContent = '正在检测…';
+    const btn = t.el.querySelector('.urow-check');
+    btn.disabled = true; btn.textContent = '检测中…'; btn.classList.remove('ok');
+  });
+  let results = null;
+  try{
+    if(DEMO){
+      results = targets.map(()=>({eligible:true, message:'该账号当前可以接收赠送。(本地预览)'}));
+    }else{
+      const r = await fetch('/api/check-batch', {
+        method:'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({usernames: targets.map(t=>t.u)}),
+      });
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.message || '检测服务暂时不可用,请稍后重试。');
+      results = j.results || [];
+    }
+  }catch(e){
+    targets.forEach(t=>{
+      const btn = t.el.querySelector('.urow-check');
+      btn.disabled = false; btn.textContent = '检测';
+      t.el.dataset.check = '';
+      t.el.classList.add('bad'); t.el.classList.remove('ok');
+      t.el.querySelector('.st').textContent = (e && e.message) || '检测失败,请稍后重试。';
+    });
+    return false;
+  }
+  let pass = true;
+  targets.forEach((t,k)=>{
+    const res = results[k] || {eligible:false, retry:true, message:'检测结果缺失,请重试。'};
+    const btn = t.el.querySelector('.urow-check');
+    btn.disabled = false; btn.textContent = '检测';
+    if(res.eligible){
+      t.el.classList.remove('bad'); t.el.classList.add('ok');
+      t.el.dataset.check = 'ok';
+      btn.classList.add('ok');
+      t.el.querySelector('.st').textContent = '✓ ' + (res.message || '该账号可以接收赠送。');
+    }else{
+      t.el.classList.remove('ok'); t.el.classList.add('bad');
+      t.el.dataset.check = res.retry ? '' : 'bad';
+      btn.classList.remove('ok');
+      t.el.querySelector('.st').textContent = (res.retry ? '⌛ ' : '✕ ') + (res.message || '检测未通过。');
+      pass = false;
+    }
+  });
+  return pass;
+}
+
+$('btn2').addEventListener('click', async ()=>{
+  if(JOB.length === 0) return;
+  const rows = [...$('userFields').children];
+  let bad = false;
+  const users = [];
+  rows.forEach((el,i)=>{
+    const input = el.querySelector('.urow-user');
+    const u = cleanUser(input.value);
+    input.value = u;
+    if(!u){ el.classList.add('bad'); el.querySelector('.st').textContent = '请填写这个账号的用户名。'; bad = true; return; }
+    if(!userOk(u)){ el.classList.add('bad'); el.querySelector('.st').textContent = '用户名不正确:1–15 位字母、数字或下划线,不是显示名称。'; bad = true; return; }
+    const dup = users.indexOf(u);
+    if(dup >= 0){ el.classList.add('bad'); el.querySelector('.st').textContent = '与第 ' + (dup+1) + ' 张重复;同一账号无法重复接收赠送。'; bad = true; return; }
+    users.push(u);
+  });
+  if(bad){ setNotice('notice2','有用户名未填写或格式不正确,请修正标红的行后重试。'); return; }
+  const unchecked = rows.map((el,i)=>el.dataset.check === 'ok' ? -1 : i).filter(i=>i >= 0);
+  if(unchecked.length > 0){
+    setNotice('notice2','');
+    const btn2 = $('btn2');
+    const prev = btn2.innerHTML;
+    btn2.disabled = true; btn2.innerHTML = '正在检测账号…';
+    const pass = await checkRows(unchecked);
+    btn2.disabled = false; btn2.innerHTML = prev;
+    if(!pass){ setNotice('notice2','有账号未通过赠送检测,请按每行提示更换用户名或稍后重试。'); return; }
+  }
+  JOB.forEach((it,i)=>{ it.user = users[i]; });
+  submitAll();
+});
+
+/* —— 步骤3:提交 + 按批轮询进度 —— */
+function renderJobs(items){
+  $('jobRows').innerHTML = items.map(it=>{
+    const pct = Math.min(100, Math.max(0, it.progress || 0));
+    const state = it.status === 'succeeded' ? 'ok'
+      : it.status === 'failed' ? 'bad'
+      : (it.status === 'review' ? 'warn' : '');
+    const icon = it.status === 'succeeded' ? '✓'
+      : it.status === 'failed' ? '✕'
+      : (it.status === 'review' ? '!' : '…');
+    return '<div class="job ' + state + '">' +
+      '<div class="job-head"><span class="job-code">' + (it.hint || '') + '</span>' +
+      '<span class="job-user">@' + (it.username || '') + '</span><b class="job-ic">' + icon + '</b></div>' +
+      '<div class="pbar sm"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="job-msg">' + (it.message || '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+function setOverall(pct, msg){
+  $('pbarFill').style.width = Math.min(100, Math.max(0, pct)) + '%';
+  if(msg) $('pmsg').textContent = msg;
+}
+function finish(ok, title, desc, actions){
+  $('progressBox').classList.remove('show');
+  $('doneBox').classList.add('show');
+  $('p3title').textContent = title;
+  $('p3desc').textContent = ok ? '感谢使用,祝你使用愉快。' : '按下方按钮继续操作,无需刷新页面。';
+  $('doneBox').querySelector('.big svg').style.fill = ok ? 'var(--blue)' : '#e5484d';
+  $('doneTitle').textContent = ok ? '开通成功 🎉' : '开通未完成';
+  $('doneDesc').textContent = desc;
+  $('doneActions').innerHTML = actions || '';
+}
+
+async function submitAll(){
+  setStep(3);
+  $('progressBox').classList.add('show');
+  $('doneBox').classList.remove('show');
+  $('doneActions').innerHTML = '';
+  $('p3title').textContent = '正在提交…';
+  $('p3desc').textContent = '多张会按顺序处理,请勿关闭本页。';
+  renderJobs(JOB.map(it=>({hint: it.code, username: it.user, status:'queued', progress:2, message:'正在提交…'})));
+  setOverall(2, '正在提交…');
+
+  if(DEMO){
+    finish(true, '开通完成 🎉', '本地预览模式,未实际提交;线上会逐张排队处理。', '<button class="btn" onclick="location.reload()">再兑换一批</button>');
+    return;
+  }
+
+  let batchToken;
+  try{
+    const r = await fetch('/api/redeem-batch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({items: JOB.map(it=>({code: it.code, username: it.user}))}),
+    });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.message || '服务暂时不可用,请稍后重试。');
+    batchToken = j.token;
+  }catch(e){
+    $('p3title').textContent = '提交未完成';
+    finish(false,'提交未完成',(e && e.message) || '连接中断,结果不确定。请保留兑换码,稍后用「查询开通结果」核实,不要直接重复提交。',
+      '<button class="btn" id="btnRetry">重试</button><button class="btn ghost" onclick="location.reload()">重新开始</button>');
+    $('btnRetry').onclick = ()=>submitAll();
+    return;
+  }
+  $('p3title').textContent = '正在按顺序开通…';
+  $('p3desc').textContent = '请勿关闭本页;多张兑换码会依次处理。';
+
+  setTimeout(()=>pollBatch(batchToken), 1200);
+}
+
+async function pollBatch(tok){
+  let r;
+  try{
+    const resp = await fetch('/api/batch/' + encodeURIComponent(tok), {cache:'no-store'});
+    if(!resp.ok) throw 0;
+    r = await resp.json();
+  }catch(e){
+    setTimeout(()=>pollBatch(tok), 4000);
+    return;
+  }
+  const items = r.items || [];
+  renderJobs(items);
+  const done = r.done || 0, total = r.total || 1;
+  setOverall(Math.round(items.reduce((s,it)=>s + (it.progress || 0), 0) / total), '已完成 ' + done + '/' + total);
+  if(done >= total){
+    const okCount = items.filter(it=>it.status === 'succeeded').length;
+    if(okCount === total){
+      finish(true, '开通完成 🎉', '已为 ' + okCount + ' 个账号完成 Premium 赠送。打开 X App 即可看到蓝V。',
+        '<button class="btn" onclick="location.reload()">再兑换一批</button>');
+    }else if(okCount > 0){
+      finish(false, '部分完成', '成功 ' + okCount + ' 张,另有 ' + (total - okCount) + ' 张需要处理或未通过;结果已保留,稍后可用「查询开通结果」核实。',
+        '<button class="btn" onclick="location.reload()">重新开始</button>');
+    }else{
+      finish(false, '开通未完成', '本次没有成功开通的兑换码;失败原因见上方每张的说明,修正后可重新提交。',
+        '<button class="btn" onclick="location.reload()">重新开始</button>');
+    }
+    return;
+  }
+  setTimeout(()=>pollBatch(tok), 2500);
+}
+
+/* 初始一行 */
+</script>
+</body>
+</html>

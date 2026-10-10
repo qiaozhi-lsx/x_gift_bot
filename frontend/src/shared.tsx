@@ -31,7 +31,12 @@ export async function request<T>(
       return { ok: false, data: { status: "verification_required", message: error instanceof Error && error.name !== "TimeoutError" && error.name !== "AbortError" ? error.message : "人机验证已超时，本次操作尚未提交，请重试。" } as T };
     }
   }
-  const response = await fetch(path, {
+  // Admin endpoints live under XGIFT_ADMIN_PATH when one is configured; the
+  // prefix is injected into admin.html at serve time. Covers every caller
+  // regardless of how the path was built.
+  const adminBase = (window as unknown as { __XGIFT_BASE__?: string }).__XGIFT_BASE__ || "";
+  const url = adminBase && path.startsWith("/api/admin/") ? adminBase + path : path;
+  const response = await fetch(url, {
     method: body === undefined ? "GET" : "POST",
     headers:
       body === undefined ? undefined : { "Content-Type": "application/json", ...(token ? { "X-Turnstile-Token": token } : {}) },
