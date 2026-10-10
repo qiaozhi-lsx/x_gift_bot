@@ -559,6 +559,16 @@ func (s *server) middleware(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		// Admin-shape pretender detector: paths that look like an admin
+		// surface but don't live under the configured adminBase get the same
+		// 401 as the real surface. Prevents prefix enumeration from a 404 vs
+		// 401 side channel, and hides the fact that an obfuscated base is in
+		// use at all.
+		if s.looksLikeAdminShape(r.URL.Path) && !s.underAdminBase(r.URL.Path) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="XGift Admin", charset="UTF-8"`)
+			message(w, 401, "需要管理员登录。")
+			return
+		}
 		if r.Method == "POST" && r.Header.Get("Origin") != s.origin {
 			message(w, 403, "请求来源不正确，请从本站页面重试。")
 			return
@@ -606,6 +616,40 @@ func (s *server) middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+// looksLikeAdminShape reports whether the path matches any admin-looking
+// pattern an attacker would try while scanning for the obfuscated base:
+// legacy /admin, /admin.js, /api/admin/*, or any */api/admin/* /admin
+// variant beneath an arbitrary prefix. Keeps the 401 response consistent
+// so a 404 can never confirm "no admin surface here".
+func (s *server) looksLikeAdminShape(path string) bool {
+	if path == "/admin" || path == "/admin.js" || strings.HasPrefix(path, "/api/admin/") {
+		return true
+	}
+	// `*/api/admin/*` / `*/admin` under any pretend prefix. Walk the path
+	// segments once and check whether any suffix looks like an admin API.
+	// Avoids a false positive on legitimate /appearance.js / /app.js.
+	if strings.Contains(path, "/api/admin/") || strings.HasSuffix(path, "/admin") || strings.HasSuffix(path, "/admin.js") {
+		return true
+	}
+	return false
+}
+
+// underAdminBase reports whether the path is served by the real admin mux.
+// When adminBase is empty the server runs with /admin as its root admin
+// surface and this helper always returns false (so looksLikeAdminShape
+// also fires for the legitimate paths, which the mux then handles with
+// its own 401; semantics unchanged).
+func (s *server) underAdminBase(path string) bool {
+	if s.adminBase == "" {
+		return path == "/admin" || path == "/admin.js" || strings.HasPrefix(path, "/api/admin/")
+	}
+	prefix := s.adminBase + "/"
+	return strings.HasPrefix(path, prefix) &&
+		(path == s.adminBase+"/admin" ||
+			path == s.adminBase+"/admin.js" ||
+			strings.HasPrefix(path, s.adminBase+"/api/admin/"))
+}
+
 func (s *server) admin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, password, ok := r.BasicAuth()
