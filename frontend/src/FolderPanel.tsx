@@ -15,6 +15,10 @@ import {
 } from "@mui/material";
 import FolderOutlined from "@mui/icons-material/FolderOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
+import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import {
+  DialogContentText,
+} from "@mui/material";
 import { adminApi, type AdminStats, type Folder } from "./adminApi";
 
 type Props = {
@@ -38,7 +42,9 @@ export function FolderPanel({
   const [target, setTarget] = useState<Folder | null>(null),
     [name, setName] = useState(""),
     [error, setError] = useState(""),
-    [pending, setPending] = useState(false);
+    [pending, setPending] = useState(false),
+    [deleteTarget, setDeleteTarget] = useState<Folder | null>(null),
+    [deleteError, setDeleteError] = useState("");
   async function save() {
     if (!target || pending) return;
     if (!name.trim() || new TextEncoder().encode(name.trim()).length > 120) {
@@ -56,6 +62,24 @@ export function FolderPanel({
       setTarget(null);
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setPending(false);
+      onBusyChange(false);
+    }
+  }
+  async function removeBatch() {
+    if (!deleteTarget || pending) return;
+    setPending(true);
+    onBusyChange(true);
+    try {
+      await adminApi("/api/admin/folders/delete", {
+        id: deleteTarget.id,
+        purge: true,
+      });
+      await onChanged();
+      setDeleteTarget(null);
+    } catch (e) {
+      setDeleteError((e as Error).message);
     } finally {
       setPending(false);
       onBusyChange(false);
@@ -128,28 +152,53 @@ export function FolderPanel({
               {folder.name} · {folder.count}
             </Button>
             {folder.id && folder.id !== "unfiled" && (
-              <Tooltip describeChild title={`重命名批次：${folder.name}`}>
-                <span>
-                  <IconButton
-                    aria-label={`重命名批次：${folder.name}`}
-                    disabled={disabled}
-                    onClick={() => {
-                      setTarget(folder);
-                      setName(folder.name);
-                      setError("");
-                    }}
-                    sx={{
-                      m: 0.5,
-                      border: 1,
-                      borderColor: "divider",
-                      width: 44,
-                      height: 44,
-                    }}
-                  >
-                    <EditOutlined fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
+              <>
+                <Tooltip describeChild title={`重命名批次：${folder.name}`}>
+                  <span>
+                    <IconButton
+                      aria-label={`重命名批次：${folder.name}`}
+                      disabled={disabled}
+                      onClick={() => {
+                        setTarget(folder as Folder);
+                        setName(folder.name);
+                        setError("");
+                      }}
+                      sx={{
+                        m: 0.5,
+                        border: 1,
+                        borderColor: "divider",
+                        width: 44,
+                        height: 44,
+                      }}
+                    >
+                      <EditOutlined fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip describeChild title={`删除批次：${folder.name}`}>
+                  <span>
+                    <IconButton
+                      color="error"
+                      aria-label={`删除批次：${folder.name}`}
+                      disabled={disabled}
+                      onClick={() => {
+                        setDeleteTarget(folder as Folder);
+                        setDeleteError("");
+                      }}
+                      sx={{
+                        m: 0.5,
+                        mr: 0.5,
+                        border: 1,
+                        borderColor: "divider",
+                        width: 44,
+                        height: 44,
+                      }}
+                    >
+                      <DeleteOutline fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </>
             )}
           </Box>
         ))}
@@ -205,6 +254,47 @@ export function FolderPanel({
             </Button>
           </DialogActions>
         </Box>
+      </Dialog>
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() => !pending && setDeleteTarget(null)}
+        role="alertdialog"
+        maxWidth="xs"
+        fullWidth
+        aria-labelledby="batch-delete-title"
+        aria-describedby="batch-delete-content"
+      >
+        <DialogTitle id="batch-delete-title">
+          删除批次「{deleteTarget?.name ?? ""}」？
+        </DialogTitle>
+        <DialogContent id="batch-delete-content">
+          <DialogContentText>
+            将同时**清空该批次下全部 {deleteTarget?.count ?? 0} 枚兑换码**
+            （含加密的兑换码正文），此操作不可恢复。请确认选择无误。
+          </DialogContentText>
+          {deleteError && (
+            <Alert severity="error" role="alert" sx={{ mt: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            variant="outlined"
+            disabled={pending}
+            onClick={() => setDeleteTarget(null)}
+          >
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={pending}
+            onClick={() => void removeBatch()}
+          >
+            {pending ? "正在删除…" : "确认删除"}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

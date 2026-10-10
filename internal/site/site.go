@@ -224,6 +224,8 @@ func Run(ctx context.Context) error {
 	mux.HandleFunc("POST "+adminBase+"/api/admin/recovery/stop", s.admin(s.recoveryStop))
 	mux.HandleFunc("POST "+adminBase+"/api/admin/codes", s.admin(s.generate))
 	mux.HandleFunc("POST "+adminBase+"/api/admin/revoke", s.admin(s.revoke))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/revoke-bulk", s.admin(s.revokeBulk))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/delete-bulk", s.admin(s.deleteBulk))
 	mux.HandleFunc("POST "+adminBase+"/api/admin/folders", s.admin(s.createFolder))
 	mux.HandleFunc("POST "+adminBase+"/api/admin/folders/rename", s.admin(s.renameFolder))
 	mux.HandleFunc("POST "+adminBase+"/api/admin/folders/delete", s.admin(s.deleteFolder))
@@ -887,4 +889,79 @@ func (s *server) revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	message(w, 200, "兑换码已停用。")
+}
+
+// revokeBulk停用一批 active 的兑换码;其它状态被忽略而不报错,
+// 以便前端在混选时也能一次性清理。返回实际停用的条数。
+func (s *server) revokeBulk(w http.ResponseWriter, r *http.Request) {
+	var q struct {
+		IDs []string `json:"ids"`
+	}
+	if !decode(w, r, &q) {
+		return
+	}
+	if len(q.IDs) < 1 || len(q.IDs) > 2000 {
+		message(w, 400, "请选择 1–2000 枚兑换码。")
+		return
+	}
+	seen := map[string]bool{}
+	placeholders := make([]string, 0, len(q.IDs))
+	args := make([]any, 0, len(q.IDs)+2)
+	args = append(args, time.Now().Unix())
+	for _, id := range q.IDs {
+		if !folderIDPattern.MatchString(id) || seen[id] {
+			message(w, 400, "兑换码选择无效或重复。")
+			return
+		}
+		seen[id] = true
+		placeholders = append(placeholders, "?")
+		args = append(args, id)
+	}
+	res, e := s.db.Exec("UPDATE codes SET status='revoked',message='兑换码已停用',updated=? WHERE status='active' AND id IN ("+strings.Join(placeholders, ",")+")", args...)
+	if e != nil {
+		message(w, 503, "批量停用失败。")
+		return
+	}
+	n, _ := res.RowsAffected()
+	reply(w, 200, map[string]any{"revoked": n, "skipped": int64(len(q.IDs)) - n, "message": fmt.Sprintf("已停用 %d 枚;%d 枚已使用或已停用,未改动。", n, int64(len(q.IDs))-n)})
+}
+
+// deleteBulk彻底删除一批兑换码(含已完成/停用),同时清掉关联的保管库记录。
+// 这是不可恢复操作,仅在管理员明确要求下通过前端二次确认后调用。
+func (s *server) deleteBulk(w http.ResponseWriter, r *http.Request) {
+	var q struct {
+		IDs []string `json:"ids"`
+	}
+	if !decode(w, r, &q) {
+		return
+	}
+	if len(q.IDs) < 1 || len(q.IDs) > 2000 {
+		message(w, 400, "请选择 1–2000 枚兑换码。")
+		return
+	}
+	seen := map[string]bool{}
+	placeholders := make([]string, 0, len(q.IDs))
+	args := make([]any, 0, len(q.IDs))
+	for _, id := range q.IDs {
+		if !folderIDPattern.MatchString(id) || seen[id] {
+			message(w, 400, "兑换码选择无效或重复。")
+			return
+		}
+		seen[id] = true
+		placeholders = append(placeholders, "?")
+		args = append(args, id)
+	}
+	// 保管库里的 redemption:ID 记录每条独立清掉;失败只记日志,不阻断。
+	for _, id := range q.IDs {
+		if e := s.vault.Delete("redemption:" + id); e != nil && !errors.Is(e, sql.ErrNoRows) {
+			log.Printf("vault redemption:%s delete failed", id)
+		}
+	}
+	res, e := s.db.Exec("DELETE FROM codes WHERE id IN ("+strings.Join(placeholders, ",")+")", args...)
+	if e != nil {
+		message(w, 503, "批量删除失败。")
+		return
+	}
+	n, _ := res.RowsAffected()
+	reply(w, 200, map[string]any{"deleted": n, "message": fmt.Sprintf("已删除 %d 枚兑换码。", n)})
 }

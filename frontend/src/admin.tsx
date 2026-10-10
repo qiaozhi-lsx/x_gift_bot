@@ -69,7 +69,11 @@ type Generated = {
   months: number;
   folder: string;
 };
-type Confirmation = { kind: "revoke"; code: Code } | null;
+type Confirmation =
+  | { kind: "revoke"; code: Code }
+  | { kind: "revoke-bulk"; count: number }
+  | { kind: "delete-bulk"; count: number }
+  | null;
 function Admin() {
   const [customerSelection, setCustomerSelection] = useState<{
     id: string;
@@ -283,12 +287,26 @@ function Admin() {
     }
   }
   async function confirm() {
-    if (confirmation?.kind !== "revoke" || mutation.current) return;
+    if (!confirmation || mutation.current) return;
     mutation.current = true;
     setBusy(true);
     try {
-      await api("/api/admin/revoke", { id: confirmation.code.id });
-      setNotice({ text: "兑换码已停用。", error: false });
+      if (confirmation.kind === "revoke") {
+        await api("/api/admin/revoke", { id: confirmation.code.id });
+        setNotice({ text: "兑换码已停用。", error: false });
+      } else if (confirmation.kind === "revoke-bulk") {
+        const r = await api<{ revoked: number; message?: string }>(
+          "/api/admin/revoke-bulk",
+          { ids: selectedIDs },
+        );
+        setNotice({ text: r.message || `已停用 ${r.revoked} 枚。`, error: false });
+      } else if (confirmation.kind === "delete-bulk") {
+        const r = await api<{ deleted: number; message?: string }>(
+          "/api/admin/delete-bulk",
+          { ids: selectedIDs },
+        );
+        setNotice({ text: r.message || `已删除 ${r.deleted} 枚。`, error: false });
+      }
       setSelectedIDs([]);
       setFocusTarget("list");
       setConfirmation(null);
@@ -691,18 +709,47 @@ function Admin() {
             <Typography variant="body2">
               已选择 {selectedIDs.length} 枚
             </Typography>
-            <Button
-              color="secondary"
-              variant="outlined"
-              startIcon={<DriveFileMoveOutlined />}
-              disabled={busy || loading || !!listError}
-              onClick={() => {
-                setMoveTarget("");
-                setMoveOpen(true);
-              }}
-            >
-              移动到批次
-            </Button>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button
+                color="secondary"
+                variant="outlined"
+                startIcon={<DriveFileMoveOutlined />}
+                disabled={busy || loading || !!listError}
+                onClick={() => {
+                  setMoveTarget("");
+                  setMoveOpen(true);
+                }}
+              >
+                移动到批次
+              </Button>
+              <Button
+                color="warning"
+                variant="outlined"
+                startIcon={<BlockOutlined />}
+                disabled={busy || loading || !!listError}
+                onClick={() =>
+                  setConfirmation({
+                    kind: "revoke-bulk",
+                    count: selectedIDs.length,
+                  })
+                }
+              >
+                批量停用
+              </Button>
+              <Button
+                color="error"
+                variant="outlined"
+                disabled={busy || loading || !!listError}
+                onClick={() =>
+                  setConfirmation({
+                    kind: "delete-bulk",
+                    count: selectedIDs.length,
+                  })
+                }
+              >
+                批量删除
+              </Button>
+            </Stack>
           </Stack>
         )}
         <TableContainer
@@ -1079,10 +1126,21 @@ function Admin() {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle id="admin-dialog-title">停用这枚兑换码？</DialogTitle>
+        <DialogTitle id="admin-dialog-title">
+          {confirmation?.kind === "revoke" && "停用这枚兑换码？"}
+          {confirmation?.kind === "revoke-bulk" &&
+            `批量停用 ${confirmation.count} 枚兑换码？`}
+          {confirmation?.kind === "delete-bulk" &&
+            `彻底删除 ${confirmation.count} 枚兑换码？`}
+        </DialogTitle>
         <DialogContent>
           <DialogContentText id="admin-dialog-description">
-            {`尾号 ${confirmation?.code.hint ?? ""} 的兑换码将无法使用。此操作不可撤销。`}
+            {confirmation?.kind === "revoke" &&
+              `尾号 ${confirmation.code.hint} 的兑换码将无法使用。此操作不可撤销。`}
+            {confirmation?.kind === "revoke-bulk" &&
+              "将把所选兑换码中仍可使用的记录全部置为「已停用」。已完成或已停用的记录会被跳过。"}
+            {confirmation?.kind === "delete-bulk" &&
+              "将把所选记录从数据库彻底删除,包含加密的兑换码正文,不可恢复。请再次确认选择无误。"}
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
@@ -1095,11 +1153,17 @@ function Admin() {
           </Button>
           <Button
             variant="contained"
-            color="error"
+            color={confirmation?.kind === "revoke-bulk" ? "warning" : "error"}
             disabled={busy}
             onClick={() => void confirm()}
           >
-            {busy ? "正在处理…" : "确认停用"}
+            {busy
+              ? "正在处理…"
+              : confirmation?.kind === "revoke-bulk"
+                ? "确认停用"
+                : confirmation?.kind === "delete-bulk"
+                  ? "确认删除"
+                  : "确认停用"}
           </Button>
         </DialogActions>
       </Dialog>

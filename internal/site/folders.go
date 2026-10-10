@@ -3,6 +3,8 @@ package site
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -125,7 +127,8 @@ func (s *server) renameFolder(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) deleteFolder(w http.ResponseWriter, r *http.Request) {
 	var q struct {
-		ID string `json:"id"`
+		ID    string `json:"id"`
+		Purge bool   `json:"purge"`
 	}
 	if !decode(w, r, &q) {
 		return
@@ -134,22 +137,80 @@ func (s *server) deleteFolder(w http.ResponseWriter, r *http.Request) {
 		message(w, 400, "文件夹无效。")
 		return
 	}
-	// ON DELETE SET NULL moves contents back to unclassified; codes are never deleted.
-	result, err := s.db.Exec("DELETE FROM folders WHERE id=?", q.ID)
-	if err != nil {
-		message(w, 503, "删除文件夹失败，请刷新后核实。")
+	// Purge=true 时连同批次里的兑换码和保管库记录一起清理;否则兼容旧行为,
+	// 删除文件夹后把码回落到"未分类"。
+	if !q.Purge {
+		result, err := s.db.Exec("DELETE FROM folders WHERE id=?", q.ID)
+		if err != nil {
+			message(w, 503, "删除文件夹失败，请刷新后核实。")
+			return
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			message(w, 503, "删除结果不确定，请刷新后核实。")
+			return
+		}
+		if n == 0 {
+			message(w, 404, "文件夹不存在，请刷新列表。")
+			return
+		}
+		message(w, 200, "文件夹已删除，兑换码已移至未分类。")
 		return
 	}
-	n, err := result.RowsAffected()
+	ids := []string{}
+	rows, err := s.db.Query("SELECT id FROM codes WHERE folder_id=?", q.ID)
 	if err != nil {
-		message(w, 503, "删除结果不确定，请刷新后核实。")
+		message(w, 503, "无法读取批次内兑换码。")
 		return
 	}
-	if n == 0 {
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			message(w, 503, "读取兑换码失败。")
+			return
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		message(w, 503, "读取兑换码失败。")
+		return
+	}
+	for _, id := range ids {
+		if e := s.vault.Delete("redemption:" + id); e != nil && !errors.Is(e, sql.ErrNoRows) {
+			log.Printf("vault redemption:%s delete failed", id)
+		}
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		message(w, 503, "暂时无法清空批次。")
+		return
+	}
+	defer tx.Rollback()
+	deleted := int64(0)
+	if len(ids) > 0 {
+		res, err := tx.Exec("DELETE FROM codes WHERE folder_id=?", q.ID)
+		if err != nil {
+			message(w, 503, "清空批次兑换码失败。")
+			return
+		}
+		deleted, _ = res.RowsAffected()
+	}
+	res, err := tx.Exec("DELETE FROM folders WHERE id=?", q.ID)
+	if err != nil {
+		message(w, 503, "删除文件夹失败。")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
 		message(w, 404, "文件夹不存在，请刷新列表。")
 		return
 	}
-	message(w, 200, "文件夹已删除，兑换码已移至未分类。")
+	if err = tx.Commit(); err != nil {
+		message(w, 503, "删除结果不确定，请刷新后核实。")
+		return
+	}
+	reply(w, 200, map[string]any{"deleted": deleted, "message": fmt.Sprintf("批次已删除,同时清空 %d 枚兑换码。", deleted)})
 }
 
 func (s *server) moveCodes(w http.ResponseWriter, r *http.Request) {

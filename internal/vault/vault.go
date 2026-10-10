@@ -180,6 +180,23 @@ func (v *Vault) PutIfAbsent(name string, plain []byte) (bool, error) {
 }
 func (v *Vault) Close() error { return v.db.Close() }
 
+// Delete removes a secret by name. Missing records return sql.ErrNoRows so
+// callers can distinguish "already gone" from a storage failure.
+func (v *Vault) Delete(name string) error {
+	res, err := v.db.Exec("DELETE FROM secrets WHERE name=?", name)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // Archive atomically preserves an authenticated record under a new name and removes
 // its active key, only if its contents still match the verified snapshot.
 func (v *Vault) Archive(name, archive string, expected, archived []byte) error {
