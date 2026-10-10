@@ -40,7 +40,7 @@ npm run preview:redeem
 
 新版页面支持中英文切换、最多 5 张卡密兑换，以及只读 `POST /api/code-lookup` 查询（输入 `{ "code": "完整卡密" }`）。查询读取站点持久化订单，不会启动付款或重复兑换。
 
-`web-redeem/index.html` 是独立静态页面，目前 `npm run build` 与 Go 服务的默认首页仍使用原 React 兑换页。上线新版时，需将此 HTML 配置为站点的静态首页，并将同源 `/api/` 请求转发到已更新的 Go 后端；仅更新二进制或上传该文件，不会自动切换首页。该页面包含内联样式和脚本，静态站点的 CSP 也需按实际部署方式配置。
+`web-redeem/index.html` 是独立静态页面，目前 `npm run build` 与 Go 服务的默认首页仍使用原 React 兑换页。上线新版时，需将 `web-redeem/` 内的 HTML、`redeem-favicon.svg` 和 `redeem-favicon.ico` 一并部署，将此 HTML 配置为站点的静态首页，并将同源 `/api/` 请求转发到已更新的 Go 后端；仅更新二进制或上传该文件，不会自动切换首页。该页面包含内联样式和脚本，静态站点的 CSP 也需按实际部署方式配置。
 
 本地仅使用示例数据，可测试：
 

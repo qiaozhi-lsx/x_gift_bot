@@ -94,6 +94,10 @@ const files = {
   "/app.js": ["app.js", "application/javascript"],
   "/admin.js": ["admin.js", "application/javascript"],
   "/favicon.svg": ["favicon.svg", "image/svg+xml"],
+  ...(redeemPage ? {
+    "/redeem-favicon.svg": ["redeem-favicon.svg", "image/svg+xml"],
+    "/redeem-favicon.ico": ["redeem-favicon.ico", "image/x-icon"],
+  } : {}),
 };
 
 createServer(async (req, res) => {
@@ -122,8 +126,9 @@ createServer(async (req, res) => {
     }
     if (req.method === "GET" && files[url.pathname]) {
       const [file, type] = files[url.pathname];
+      const standaloneAsset = redeemPage && ["/", "/redeem-favicon.svg", "/redeem-favicon.ico"].includes(url.pathname);
       let data = await readFile(
-        new URL(redeemPage && url.pathname === "/" ? "../../web-redeem/index.html" : `../../internal/site/assets/${file}`, import.meta.url),
+        new URL(standaloneAsset ? `../../web-redeem/${file}` : `../../internal/site/assets/${file}`, import.meta.url),
       );
       if (type === "text/html")
         data = data
