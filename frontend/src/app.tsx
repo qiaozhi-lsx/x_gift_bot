@@ -73,7 +73,7 @@ function App() {
   const attempt = useRef(0);
   const cleanCode = code.replace(/\s+/g, "").toUpperCase();
   const cleanUser = username.trim().replace(/^@/, "").toLowerCase();
-  const codeValid = /^XG-[A-F0-9]{48}$/.test(cleanCode);
+  const codeValid = /^(?:XG-[A-F0-9]{48}|XPP-[A-Z0-9]{16})$/.test(cleanCode);
   const userValid = /^[a-z0-9_]{1,15}$/.test(cleanUser);
 
   useEffect(() => {
@@ -329,12 +329,12 @@ function App() {
               required
               multiline
               minRows={2}
-              placeholder="粘贴 XG- 开头的完整兑换码"
+              placeholder="粘贴 xPP- 开头的完整兑换码"
               autoComplete="off"
               error={validation && !codeValid}
               helperText={
                 validation && !codeValid
-                  ? "请输入 XG- 开头、后接 48 位十六进制字符（0-9、A-F）的完整兑换码。"
+                  ? "请输入完整兑换码（xPP- 开头、后接 16 位字符；旧版 XG- 码也可使用）。"
                   : "请保留兑换码，后续查询仍需使用。"
               }
               slotProps={{

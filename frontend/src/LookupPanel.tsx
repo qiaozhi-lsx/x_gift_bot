@@ -38,7 +38,7 @@ export function LookupPanel({
   const sequence = useRef(0);
   const field = useRef<HTMLInputElement>(null);
   const clean = input.replace(/\s+/g, "").toUpperCase();
-  const valid = /^XG-[A-F0-9]{48}$/.test(clean);
+  const valid = /^(?:XG-[A-F0-9]{48}|XPP-[A-Z0-9]{16})$/.test(clean);
 
   async function run(code: string) {
     const seq = ++sequence.current;
@@ -115,7 +115,7 @@ export function LookupPanel({
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
           <TextField
             label="完整兑换码"
-            placeholder="XG-…"
+            placeholder="xPP-…"
             value={input}
             onChange={(event) => {
               // 编辑即作废在途响应:旧结果不得在输入变化后重新出现。
@@ -131,7 +131,7 @@ export function LookupPanel({
             error={invalid}
             helperText={
               invalid
-                ? "请输入 XG- 开头、后接 48 位十六进制字符（0-9、A-F）的完整兑换码。"
+                ? "请输入完整兑换码（xPP- 开头、后接 16 位字符；旧版 XG- 码也可查询）。"
                 : " "
             }
             slotProps={{

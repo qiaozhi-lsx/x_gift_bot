@@ -3,6 +3,7 @@ package site
 import (
 	"database/sql"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -79,7 +80,7 @@ func (s *server) copyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	plain, err := s.vault.Get("redemption:" + q.ID)
-	if err != nil || hash(string(plain)) != digest {
+	if err != nil || hash(strings.ToUpper(string(plain))) != digest {
 		message(w, 503, "无法读取完整兑换码，请稍后重试。")
 		return
 	}

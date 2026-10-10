@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"xgift/internal/checkout"
 )
 
@@ -49,7 +50,7 @@ func (s *server) customerOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer clear(b)
-		if !codePattern.Match(b) || hash(string(b)) != digest {
+		if !codePattern.Match(b) || hash(strings.ToUpper(string(b))) != digest {
 			message(w, 503, "卡密校验未通过，请核实加密记录。")
 			return
 		}

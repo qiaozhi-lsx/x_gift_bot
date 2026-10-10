@@ -694,12 +694,22 @@ func (w *wizard) setupSite(db, passwordFile string) (bool, error) {
 	if err = writeOwnerOnly(adminPath, []byte(adminPassword+"\n")); err != nil {
 		return false, err
 	}
+	userSeed := make([]byte, 8)
+	if _, err = rand.Read(userSeed); err != nil {
+		return false, err
+	}
+	adminUser := "z" + base64.RawURLEncoding.EncodeToString(userSeed)[:11]
+	pathSeed := make([]byte, 12)
+	if _, err = rand.Read(pathSeed); err != nil {
+		return false, err
+	}
+	adminBase := "/" + base64.RawURLEncoding.EncodeToString(pathSeed)[:16]
 	enabled := "false"
 	if payments {
 		enabled = "true"
 	}
-	siteEnv := fmt.Sprintf("XGIFT_ORIGIN=%s\nXGIFT_LISTEN=%s\nXGIFT_DATA_DIR=%s\nXGIFT_PASSWORD_FILE=%s\nXGIFT_ADMIN_PASSWORD_FILE=%s\nXGIFT_PAYMENTS_ENABLED=%s\n",
-		origin, listen, dir, passwordFile, adminPath, enabled)
+	siteEnv := fmt.Sprintf("XGIFT_ORIGIN=%s\nXGIFT_LISTEN=%s\nXGIFT_DATA_DIR=%s\nXGIFT_PASSWORD_FILE=%s\nXGIFT_ADMIN_PASSWORD_FILE=%s\nXGIFT_PAYMENTS_ENABLED=%s\nXGIFT_ADMIN_USER=%s\nXGIFT_ADMIN_PATH=%s\n",
+		origin, listen, dir, passwordFile, adminPath, enabled, adminUser, adminBase)
 	envPath := filepath.Join(dir, "site.env")
 	if err = writeOwnerOnly(envPath, []byte(siteEnv)); err != nil {
 		return false, err

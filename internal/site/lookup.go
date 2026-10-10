@@ -18,7 +18,7 @@ func (s *server) lookup(w http.ResponseWriter, r *http.Request) {
 	}
 	q.Code = strings.ToUpper(strings.TrimSpace(q.Code))
 	if !codePattern.MatchString(q.Code) {
-		message(w, 400, "请填写 XG- 开头、后接 48 位十六进制字符（0-9、A-F）的完整兑换码。")
+		message(w, 400, "请填写完整兑换码（xPP- 开头、后接 16 位字符；旧版 XG- 码仍可查询）。")
 		return
 	}
 	var c codeRow

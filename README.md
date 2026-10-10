@@ -92,6 +92,8 @@ sudo systemctl enable --now xgift
 | `XGIFT_DATA_DIR` | 数据目录（vault.db、site.db 所在） |
 | `XGIFT_PASSWORD_FILE` | 保管库密码文件路径 |
 | `XGIFT_ADMIN_PASSWORD_FILE` | 后台密码文件路径 |
+| `XGIFT_ADMIN_USER` | 后台 Basic 认证用户名（必填，≥6 字符，不得为 `admin`） |
+| `XGIFT_ADMIN_PATH` | 后台路径前缀（如 `/k7m2x9…`，≥6 字符），设置后整个后台（页面/静态/接口）只在该前缀下提供，旧路径 404 |
 | `XGIFT_PAYMENTS_ENABLED` | `true` 开放充值，`false` 暂停（不消耗兑换码） |
 
 ### 第五步：配置 HTTPS 反向代理

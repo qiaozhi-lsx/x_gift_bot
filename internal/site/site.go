@@ -36,7 +36,11 @@ var assets embed.FS
 
 type nonceContextKey struct{}
 
-var codePattern = regexp.MustCompile(`^XG-[A-F0-9]{48}$`)
+var codePattern = regexp.MustCompile(`^(?:XG-[A-F0-9]{48}|XPP-[A-Z0-9]{16})$`)
+
+// adminPathPattern validates the optional secret prefix that moves the whole
+// admin surface (UI, assets and API) off the guessable /admin paths.
+var adminPathPattern = regexp.MustCompile(`^/[A-Za-z0-9_-]{6,64}$`)
 
 type server struct {
 	linkQueue        publicLinkQueue
@@ -46,6 +50,8 @@ type server struct {
 	db               *sql.DB
 	vault            *vault.Vault
 	origin           string
+	adminUser        string
+	adminBase        string
 	adminHash        [32]byte
 	payments         bool
 	port             int
@@ -112,7 +118,15 @@ func Run(ctx context.Context) error {
 	if len(admin) < 32 {
 		return errors.New("admin password must contain at least 32 characters")
 	}
-	s := &server{origin: origin, adminHash: sha256.Sum256(admin), payments: os.Getenv("XGIFT_PAYMENTS_ENABLED") == "true", lockPath: filepath.Join(dir, "checkout.lock"), work: make(chan struct{}, 1), checks: make(chan struct{}, 4), ctx: ctx, limits: map[string]limit{}}
+	adminUser := strings.TrimSpace(os.Getenv("XGIFT_ADMIN_USER"))
+	if len(adminUser) < 6 || adminUser == "admin" {
+		return errors.New("XGIFT_ADMIN_USER is required (at least 6 characters, must not be \"admin\")")
+	}
+	adminBase := strings.TrimSuffix(strings.TrimSpace(os.Getenv("XGIFT_ADMIN_PATH")), "/")
+	if adminBase != "" && !adminPathPattern.MatchString(adminBase) {
+		return errors.New("XGIFT_ADMIN_PATH must be / followed by 6-64 letters, digits, '-' or '_'")
+	}
+	s := &server{origin: origin, adminUser: adminUser, adminBase: adminBase, adminHash: sha256.Sum256(admin), payments: os.Getenv("XGIFT_PAYMENTS_ENABLED") == "true", lockPath: filepath.Join(dir, "checkout.lock"), work: make(chan struct{}, 1), checks: make(chan struct{}, 4), ctx: ctx, limits: map[string]limit{}}
 	clear(admin)
 	if err = s.configureTurnstile(); err != nil {
 		return err
@@ -141,6 +155,9 @@ func Run(ctx context.Context) error {
 	}
 	s.db = db
 	defer db.Close()
+	if err = s.restoreRedeemQueue(); err != nil {
+		return err
+	}
 	raw, err := v.Get("proxy")
 	if err != nil {
 		return err
@@ -177,6 +194,8 @@ func Run(ctx context.Context) error {
 	})
 	mux.HandleFunc("GET /api/security", s.securityConfig)
 	mux.HandleFunc("POST /api/redeem", s.human("redeem", s.redeem))
+	mux.HandleFunc("POST /api/redeem-batch", s.redeemBatch)
+	mux.HandleFunc("GET /api/batch/{token}", s.batchStatus)
 	mux.HandleFunc("GET /api/manual-link/plans", s.publicLinkPlans)
 	mux.HandleFunc("POST /api/manual-link", s.human("manual_link", s.publicLink))
 	mux.HandleFunc("GET /api/manual-link/queue", s.publicLinkQueueSummary)
@@ -187,26 +206,28 @@ func Run(ctx context.Context) error {
 	mux.HandleFunc("POST /api/manual-link/queue/{ticket}/cancel", s.cancelPublicLinkQueue)
 	mux.HandleFunc("POST /api/status", s.status)
 	mux.HandleFunc("POST /api/code-info", s.human("code-info", s.codeInfo))
+	mux.HandleFunc("POST /api/code-info-batch", s.human("code-info", s.codeInfoBatch))
 	mux.HandleFunc("POST /api/check", s.human("check", s.check))
-	mux.HandleFunc("GET /admin", s.admin(s.asset("admin.html", "text/html; charset=utf-8")))
-	mux.HandleFunc("GET /admin.js", s.admin(s.asset("admin.js", "application/javascript; charset=utf-8")))
-	mux.HandleFunc("GET /api/admin/codes", s.admin(s.list))
-	mux.HandleFunc("POST /api/admin/lookup", s.admin(s.lookup))
-	mux.HandleFunc("GET /api/admin/stats", s.admin(s.stats))
-	mux.HandleFunc("GET /api/admin/customer", s.admin(s.customerOrder))
-	mux.HandleFunc("GET /api/admin/manual-link/plans", s.admin(s.manualLinkPlans))
-	mux.HandleFunc("POST /api/admin/manual-link", s.admin(s.manualLink))
-	mux.HandleFunc("GET /api/admin/recovery", s.admin(s.recoveryStatus))
-	mux.HandleFunc("POST /api/admin/recovery/preview", s.admin(s.recoveryPreview))
-	mux.HandleFunc("POST /api/admin/recovery/start", s.admin(s.recoveryStart))
-	mux.HandleFunc("POST /api/admin/recovery/stop", s.admin(s.recoveryStop))
-	mux.HandleFunc("POST /api/admin/codes", s.admin(s.generate))
-	mux.HandleFunc("POST /api/admin/revoke", s.admin(s.revoke))
-	mux.HandleFunc("POST /api/admin/folders", s.admin(s.createFolder))
-	mux.HandleFunc("POST /api/admin/folders/rename", s.admin(s.renameFolder))
-	mux.HandleFunc("POST /api/admin/folders/delete", s.admin(s.deleteFolder))
-	mux.HandleFunc("POST /api/admin/codes/move", s.admin(s.moveCodes))
-	mux.HandleFunc("POST /api/admin/codes/copy", s.admin(s.copyCode))
+	mux.HandleFunc("POST /api/check-batch", s.checkBatch)
+	mux.HandleFunc("GET "+adminBase+"/admin", s.admin(s.asset("admin.html", "text/html; charset=utf-8")))
+	mux.HandleFunc("GET "+adminBase+"/admin.js", s.admin(s.asset("admin.js", "application/javascript; charset=utf-8")))
+	mux.HandleFunc("GET "+adminBase+"/api/admin/codes", s.admin(s.list))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/lookup", s.admin(s.lookup))
+	mux.HandleFunc("GET "+adminBase+"/api/admin/stats", s.admin(s.stats))
+	mux.HandleFunc("GET "+adminBase+"/api/admin/customer", s.admin(s.customerOrder))
+	mux.HandleFunc("GET "+adminBase+"/api/admin/manual-link/plans", s.admin(s.manualLinkPlans))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/manual-link", s.admin(s.manualLink))
+	mux.HandleFunc("GET "+adminBase+"/api/admin/recovery", s.admin(s.recoveryStatus))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/recovery/preview", s.admin(s.recoveryPreview))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/recovery/start", s.admin(s.recoveryStart))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/recovery/stop", s.admin(s.recoveryStop))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/codes", s.admin(s.generate))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/revoke", s.admin(s.revoke))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/folders", s.admin(s.createFolder))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/folders/rename", s.admin(s.renameFolder))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/folders/delete", s.admin(s.deleteFolder))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/codes/move", s.admin(s.moveCodes))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/codes/copy", s.admin(s.copyCode))
 	addr := os.Getenv("XGIFT_LISTEN")
 	if addr == "" {
 		addr = "127.0.0.1:8787"
@@ -223,6 +244,8 @@ func Run(ctx context.Context) error {
 	go func() { defer s.jobs.Done(); s.reconcileLoop() }()
 	s.jobs.Add(1)
 	go func() { defer s.jobs.Done(); s.publicLinkQueueLoop() }()
+	s.jobs.Add(1)
+	go func() { defer s.jobs.Done(); s.redeemQueueLoop() }()
 	select {
 	case err = <-done:
 	case <-ctx.Done():
@@ -352,6 +375,9 @@ func openSiteDB(dbpath string) (*sql.DB, error) {
 	if err = migrateBatches(db); err != nil {
 		return nil, err
 	}
+	if err = migrateRedeemQueue(db); err != nil {
+		return nil, err
+	}
 	// A crash is never interpreted as permission to submit the same payment again.
 	if _, err = db.Exec("UPDATE codes SET status='review',message=?,updated=? WHERE status='processing'", "订单处理被中断，请查询原订单或联系管理员核实；请勿重复兑换。", time.Now().Unix()); err != nil {
 		return nil, err
@@ -375,6 +401,31 @@ func token(n int) string {
 		panic(e)
 	}
 	return hex.EncodeToString(b)
+}
+
+const codeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+
+// codeSuffix draws n characters from codeAlphabet for redemption codes.
+// Bytes at or above the largest multiple of the alphabet size are dropped so
+// every character stays equally likely.
+func codeSuffix(n int) string {
+	out := make([]byte, 0, n)
+	buf := make([]byte, 64)
+	for len(out) < n {
+		if _, e := rand.Read(buf); e != nil {
+			panic(e)
+		}
+		for _, b := range buf {
+			if b >= 216 { // 216 == 54*4, discard the biased tail
+				continue
+			}
+			out = append(out, codeAlphabet[int(b)%len(codeAlphabet)])
+			if len(out) == n {
+				break
+			}
+		}
+	}
+	return string(out)
 }
 func hash(code string) string { b := sha256.Sum256([]byte(code)); return hex.EncodeToString(b[:]) }
 func reply(w http.ResponseWriter, status int, v any) {
@@ -441,7 +492,21 @@ func (s *server) asset(name, kind string) http.HandlerFunc {
 			nonce, _ := r.Context().Value(nonceContextKey{}).(string)
 			b = bytes.ReplaceAll(b, []byte("__XGIFT_NONCE__"), []byte(nonce))
 		}
-		if strings.HasSuffix(name, ".js") {
+		// When the admin surface sits behind a secret prefix, rewrite the
+		// bundle's baked-in admin paths on the way out; the compressed copy
+		// cannot be rewritten, so it is skipped for admin.js.
+		skipGzip := false
+		if s.adminBase != "" {
+			switch name {
+			case "admin.html":
+				b = bytes.ReplaceAll(b, []byte("/admin.js"), []byte(s.adminBase+"/admin.js"))
+			case "admin.js":
+				b = bytes.ReplaceAll(b, []byte(`"/api/admin/`), []byte(`"`+s.adminBase+`/api/admin/`))
+				b = bytes.ReplaceAll(b, []byte(`"/admin"`), []byte(`"`+s.adminBase+`/admin"`))
+				skipGzip = true
+			}
+		}
+		if strings.HasSuffix(name, ".js") && !skipGzip {
 			w.Header().Set("Vary", "Accept-Encoding")
 			if acceptsGzip(r.Header.Get("Accept-Encoding")) {
 				if compressed, err := assets.ReadFile("assets/" + name + ".gz"); err == nil {
@@ -491,7 +556,7 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			message(w, 403, "请求来源不正确，请从本站页面重试。")
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/admin") {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/admin") || (s.adminBase != "" && strings.HasPrefix(r.URL.Path, s.adminBase+"/")) {
 			// Caddy overwrites X-Real-IP, and this server accepts loopback traffic only.
 			ip := r.Header.Get("X-Real-IP")
 			if net.ParseIP(ip) == nil {
@@ -499,16 +564,25 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			}
 			max := 60
 			bucket := "api:"
-			if r.URL.Path == "/api/redeem" {
-				max = 8
+			if strings.Contains(r.URL.Path, "/api/admin/") || strings.HasSuffix(r.URL.Path, "/admin") {
+				max = 20
+				bucket = "admin:"
+			} else if r.URL.Path == "/api/redeem" || r.URL.Path == "/api/redeem-batch" {
+				max = 4
 				bucket = "redeem:"
+			} else if strings.HasPrefix(r.URL.Path, "/api/batch/") {
+				max = 120
+				bucket = "batch:"
+			} else if r.URL.Path == "/api/code-info" || r.URL.Path == "/api/code-info-batch" {
+				max = 20
+				bucket = "code-info:"
 			} else if r.URL.Path == "/api/manual-link" {
 				max = 4
 				bucket = "manual-link:"
 			} else if r.URL.Path == "/api/manual-link/order" {
 				max = 6
 				bucket = "order:"
-			} else if r.URL.Path == "/api/check" {
+			} else if r.URL.Path == "/api/check" || r.URL.Path == "/api/check-batch" {
 				max = 8
 				bucket = "check:"
 			}
@@ -525,7 +599,7 @@ func (s *server) admin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, password, ok := r.BasicAuth()
 		sum := sha256.Sum256([]byte(password))
-		if !ok || subtle.ConstantTimeCompare(sum[:], s.adminHash[:]) != 1 || user != "admin" {
+		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(s.adminUser)) != 1 || subtle.ConstantTimeCompare(sum[:], s.adminHash[:]) != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="XGift Admin", charset="UTF-8"`)
 			message(w, 401, "需要管理员登录。")
 			return
@@ -563,6 +637,23 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 	if e != nil || c.Username != "" && c.Username != user {
 		message(w, 404, "兑换码或用户名不匹配。")
 		return
+	}
+	// A queued entry owns this code until the worker claims it; report the
+	// queue position instead of the (still 'active') code status.
+	var qstate, quser string
+	var qseq int64
+	if qerr := s.db.QueryRow("SELECT state,seq,username FROM redeem_queue WHERE code_id=? AND state IN ('queued','running') ORDER BY seq DESC LIMIT 1", c.ID).Scan(&qstate, &qseq, &quser); qerr == nil {
+		if quser != user {
+			message(w, 404, "兑换码或用户名不匹配。")
+			return
+		}
+		if qstate == "queued" {
+			var ahead int
+			_ = s.db.QueryRow("SELECT COUNT(*) FROM redeem_queue WHERE state IN ('queued','running') AND seq < ?", qseq).Scan(&ahead)
+			reply(w, 200, map[string]any{"status": "processing", "months": c.Months, "progress": max(5, c.Progress), "queued": true, "ahead": ahead,
+				"message": fmt.Sprintf("已排队，前面还有 %d 单，请保留本页等待。", ahead)})
+			return
+		}
 	}
 	if c.Status == "review" {
 		s.reconcileStatus(r.Context(), &c)
@@ -640,140 +731,61 @@ func (s *server) check(w http.ResponseWriter, r *http.Request) {
 	}
 	reply(w, 200, map[string]any{"eligible": true, "message": "该账号当前可以接收赠送。"})
 }
-func (s *server) redeem(w http.ResponseWriter, r *http.Request) {
-	ready, availabilityErr := s.paymentsAvailable()
-	if !ready || availabilityErr != nil {
-		reply(w, http.StatusServiceUnavailable, map[string]any{"status": "paused", "message": "充值暂时暂停，恢复时间待定。请保留兑换码，已有订单可继续查询进度。"})
+
+// checkBatch probes gifting eligibility for up to maxRedeemBatch usernames in
+// one request so the redemption page can verify every row with a single human
+// check. Results keep the submitted order; retry marks transient upstream
+// failures that should be retried rather than answered with a new username.
+func (s *server) checkBatch(w http.ResponseWriter, r *http.Request) {
+	var q struct {
+		Usernames []string `json:"usernames"`
+	}
+	if !decode(w, r, &q) {
 		return
 	}
-	code, user, ok := readInput(w, r)
-	if !ok {
+	if len(q.Usernames) == 0 || len(q.Usernames) > maxRedeemBatch {
+		message(w, 400, fmt.Sprintf("每次最多检测 %d 个用户名。", maxRedeemBatch))
 		return
 	}
-	c, e := s.find(code)
-	if errors.Is(e, sql.ErrNoRows) {
-		message(w, 404, "兑换码不存在，请检查后重试。")
-		return
-	}
-	if e != nil {
-		message(w, 503, "服务暂时不可用，兑换码未使用。")
-		return
-	}
-	resuming := c.Status == "review" && c.Username == user && c.RecipientID != ""
-	if c.Status != "active" && !resuming {
-		if c.Username == user && (c.Status == "processing" || c.Status == "review" || c.Status == "succeeded") {
-			reply(w, 200, map[string]any{"status": c.Status, "message": c.Message, "months": c.Months, "progress": c.Progress, "rechecking": s.autoChecking(&c)})
+	users := make([]string, 0, len(q.Usernames))
+	for i, raw := range q.Usernames {
+		u, ok := checkout.NormalizeUsername(raw)
+		if !ok {
+			message(w, 400, fmt.Sprintf("第 %d 个用户名不正确。", i+1))
 			return
 		}
-		message(w, 409, "兑换码已使用或已停用，请联系提供方。")
-		return
+		users = append(users, u)
 	}
-	recipient := c.RecipientID
-	if !resuming {
-		ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
-		defer cancel()
-		recipient, e = checkout.Eligibility(ctx, s.vault, user, s.port)
-		if e != nil {
-			switch {
-			case errors.Is(e, checkout.ErrNotEligible):
-				message(w, 422, "X 当前不允许向这个账号赠送 Premium。兑换码未使用，可换一个符合条件的账号。")
-			case errors.Is(e, checkout.ErrUserNotFound):
-				message(w, 422, "未能找到这个 X 账号，请检查用户名。兑换码未使用。")
+	results := make([]map[string]any, len(users))
+	var wg sync.WaitGroup
+	for i, u := range users {
+		wg.Add(1)
+		go func(i int, u string) {
+			defer wg.Done()
+			select {
+			case s.checks <- struct{}{}:
+				defer func() { <-s.checks }()
 			default:
-				message(w, 503, "暂时无法向 X 核实赠送资格，请稍后重试。兑换码未使用。")
-			}
-			return
-		}
-	}
-	// Payments are serialized; wait briefly for another order instead of failing.
-	// The lock is shared with the CLI and kept until the final database write.
-	release, ok := s.waitLock(r.Context(), redeemLockWait)
-	if !ok {
-		message(w, 503, "正在处理其他订单，请稍后重试。兑换码未使用。")
-		return
-	}
-	handedOff := false
-	defer func() {
-		if !handedOff {
-			release()
-		}
-	}()
-	if !resuming {
-		// A prior CLI order must not fulfill a newly presented redemption code.
-		for _, key := range []string{"checkout:" + recipient, "checkout:" + user} {
-			if _, e = s.vault.Get(key); !errors.Is(e, sql.ErrNoRows) {
-				message(w, 409, "这个账号已有订单记录，需要管理员核实后处理。兑换码未使用。")
+				results[i] = map[string]any{"eligible": false, "retry": true, "message": "当前检测人数较多，请稍后重试。"}
 				return
 			}
-		}
-	}
-	var result sql.Result
-	if resuming {
-		result, e = s.db.Exec("UPDATE codes SET status='processing',progress=20,message=?,updated=? WHERE id=? AND status='review' AND username=? AND recipient_id=? AND months=?", "正在重新检查原订单，请稍候。", time.Now().Unix(), c.ID, user, recipient, c.Months)
-	} else {
-		result, e = s.db.Exec("UPDATE codes SET status='processing',progress=20,username=?,recipient_id=?,message=?,updated=? WHERE id=? AND status='active'", user, recipient, "正在处理，请不要重复提交。", time.Now().Unix(), c.ID)
-	}
-	if e != nil {
-		message(w, 409, "无法开始处理订单，请刷新后查询兑换状态。")
-		return
-	}
-	n, e := result.RowsAffected()
-	if e != nil || n != 1 {
-		message(w, 409, "兑换码状态已改变，请刷新后查询。")
-		return
-	}
-	handedOff = true
-	s.jobs.Add(1)
-	go func() {
-		defer s.jobs.Done()
-		defer release()
-		ctx, cancel := context.WithTimeout(s.ctx, 240*time.Second)
-		defer cancel()
-		ctx = checkout.WithProgress(ctx, func(percent int, msg string) {
-			if _, err := s.db.Exec("UPDATE codes SET progress=MAX(progress,?),message=?,updated=? WHERE id=? AND status='processing'", percent, msg, time.Now().Unix(), c.ID); err != nil {
-				log.Printf("order %s progress could not be saved", c.ID)
+			ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
+			defer cancel()
+			_, e := checkout.Eligibility(ctx, s.vault, u, s.port)
+			switch {
+			case e == nil:
+				results[i] = map[string]any{"eligible": true, "message": "该账号当前可以接收赠送。"}
+			case errors.Is(e, checkout.ErrNotEligible):
+				results[i] = map[string]any{"eligible": false, "message": "X 当前不允许向这个账号赠送 Premium，请更换用户名。"}
+			case errors.Is(e, checkout.ErrUserNotFound):
+				results[i] = map[string]any{"eligible": false, "message": "未能找到这个 X 账号，请更换用户名。"}
+			default:
+				results[i] = map[string]any{"eligible": false, "retry": true, "message": "暂时无法向 X 核实资格，请稍后重试。"}
 			}
-		})
-		var record *checkout.Record
-		var err error
-		if resuming {
-			record, err = checkout.ResumeForRecipient(ctx, s.vault, user, recipient, s.port, c.Months)
-		} else {
-			record, err = checkout.RunForRecipient(ctx, s.vault, user, recipient, true, s.port, c.Months)
-		}
-		if err != nil {
-			stage := "before_order"
-			if record != nil {
-				stage = record.Status
-			}
-			failure, marshalErr := json.Marshal(map[string]any{"code_id": c.ID, "recipient_id": recipient, "months": c.Months, "stage": stage, "error": err.Error(), "observed_at": time.Now().Unix()})
-			if marshalErr != nil || s.vault.Put(fmt.Sprintf("redemption-failure:%s:%d", c.ID, time.Now().UnixNano()), failure) != nil {
-				log.Printf("order %s failure details could not be persisted", c.ID)
-			}
-			clear(failure)
-			log.Printf("order %s stopped at stage %s; upstream details remain encrypted", c.ID, stage)
-		}
-		status, msg := "review", redeemMessage(record, err)
-		if err == nil && record != nil && record.Status == "succeeded" && record.RecipientID == recipient && record.Months == c.Months {
-			plan, planErr := s.catalogPlan(c.Months)
-			if planErr == nil && record.Amount == plan.Minor && record.Currency == strings.ToUpper(plan.Currency) {
-				status, msg = "succeeded", fmt.Sprintf("已为 @%s 完成 %d 个月 Premium 赠送。", user, c.Months)
-			}
-		}
-		updated, e := s.db.Exec("UPDATE codes SET status=?,message=?,updated=?,progress=CASE WHEN ?='succeeded' THEN 100 ELSE progress END WHERE id=? AND status='processing'", status, msg, time.Now().Unix(), status, c.ID)
-		if e != nil {
-			log.Printf("order %s requires database reconciliation", c.ID)
-			return
-		}
-		n, e := updated.RowsAffected()
-		if e != nil || n != 1 {
-			log.Printf("order %s requires database reconciliation", c.ID)
-			return
-		}
-		// Never log the checkout URL, credentials or upstream payloads.
-		log.Printf("order %s finished: %s", c.ID, status)
-	}()
-	reply(w, 202, map[string]any{"status": "processing", "progress": 20, "months": c.Months, "message": "正在处理，请保留本页并等待结果。"})
+		}(i, u)
+	}
+	wg.Wait()
+	reply(w, 200, map[string]any{"results": results})
 }
 
 // redeemMessage explains an unfinished redemption; payment state wins over errors.
@@ -836,7 +848,7 @@ func (s *server) generate(w http.ResponseWriter, r *http.Request) {
 	codes := make([]string, 0, q.Count)
 	now := time.Now().Unix()
 	for i := 0; i < q.Count; i++ {
-		code := "XG-" + strings.ToUpper(token(24))
+		code := "xPP-" + codeSuffix(16)
 		id := token(16)
 		// Persist encrypted content first; an interrupted transaction can only leave an
 		// unreachable vault record, never an active code without its encrypted value.
@@ -844,7 +856,9 @@ func (s *server) generate(w http.ResponseWriter, r *http.Request) {
 			message(w, 503, "无法加密保存兑换码，尚未生成本批。")
 			return
 		}
-		_, e = tx.Exec("INSERT INTO codes(id,hash,hint,batch,months,status,created,updated,folder_id,copyable) VALUES(?,?,?,?,?,'active',?,?,?,1)", id, hash(code), code[len(code)-8:], q.Batch, q.Months, now, now, folder)
+		// Input is upper-cased before lookup, so the stored digest is taken over
+		// the upper-cased code while the vault keeps the display form.
+		_, e = tx.Exec("INSERT INTO codes(id,hash,hint,batch,months,status,created,updated,folder_id,copyable) VALUES(?,?,?,?,?,'active',?,?,?,1)", id, hash(strings.ToUpper(code)), code[len(code)-8:], q.Batch, q.Months, now, now, folder)
 		if e != nil {
 			message(w, 503, "生成失败，没有保存本批兑换码。")
 			return
