@@ -5,6 +5,50 @@ export async function adminApi<T>(path: string, body?: unknown): Promise<T> {
   return data;
 }
 export type Folder = { id: string; name: string; count: number };
+export type CardStatus = {
+  last4: string;
+  usable: boolean;
+  problem?: string;
+  blocked?: string;
+  cooling_seconds?: number;
+  pair_cooling?: number;
+  limit?: number;
+  used_usd?: number;
+  used_count?: number;
+  per_months?: Record<string, number>;
+  remaining?: number;
+  unlimited?: boolean;
+  depleted?: boolean;
+};
+export type CardsList = { cards: CardStatus[] };
+export function listCards() {
+  return adminApi<CardsList>("/api/admin/cards");
+}
+export type NewCard = {
+  number: string;
+  exp_month: string;
+  exp_year: string;
+  cvc: string;
+  limit: number;
+};
+export function addCard(body: NewCard) {
+  return adminApi<{ count: number; message?: string }>(
+    "/api/admin/cards",
+    body,
+  );
+}
+export function removeCard(last4: string) {
+  return adminApi<{ remaining: number; message?: string }>(
+    "/api/admin/cards/remove",
+    { last4 },
+  );
+}
+export function unblockCards() {
+  return adminApi<{ cleared: number; message?: string }>(
+    "/api/admin/cards/unblock",
+    {},
+  );
+}
 export type AdminStats = {
   total: number;
   active: number;

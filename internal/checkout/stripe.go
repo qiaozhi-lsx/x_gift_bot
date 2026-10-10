@@ -378,18 +378,19 @@ func (s *stripeClient) page(ctx context.Context, r *Record, init bool) (*payment
 }
 
 type card struct {
-	Number  string `json:"number"`
-	Month   string `json:"exp_month"`
-	Year    string `json:"exp_year"`
-	CVC     string `json:"cvc"`
-	Name    string `json:"billing_name"`
-	Email   string `json:"email"`
-	Country string `json:"billing_country"`
-	Postal  string `json:"billing_postal_code"`
-	Line1   string `json:"billing_address_line1"`
-	Line2   string `json:"billing_address_line2"`
-	City    string `json:"billing_city"`
-	State   string `json:"billing_state"`
+	Number  string  `json:"number"`
+	Month   string  `json:"exp_month"`
+	Year    string  `json:"exp_year"`
+	CVC     string  `json:"cvc"`
+	Name    string  `json:"billing_name"`
+	Email   string  `json:"email"`
+	Country string  `json:"billing_country"`
+	Postal  string  `json:"billing_postal_code"`
+	Line1   string  `json:"billing_address_line1"`
+	Line2   string  `json:"billing_address_line2"`
+	City    string  `json:"billing_city"`
+	State   string  `json:"billing_state"`
+	Limit   float64 `json:"limit,omitempty"` // 初始额度 USD;0 表示老卡未设限,新加卡必填 > 0
 }
 
 func CheckPaymentConfiguration(v *vault.Vault) error {

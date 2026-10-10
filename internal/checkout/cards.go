@@ -395,12 +395,19 @@ func hasUsableCard(v *vault.Vault) (bool, error) {
 // CardStatus is a number-free view of one configured card for the CLI and the
 // admin dashboard.
 type CardStatus struct {
-	Last4          string `json:"last4"`
-	Usable         bool   `json:"usable"`
-	Problem        string `json:"problem,omitempty"`
-	Blocked        string `json:"blocked,omitempty"`
-	CoolingSeconds int64  `json:"cooling_seconds,omitempty"`
-	PairCooling    int    `json:"pair_cooling,omitempty"`
+	Last4          string      `json:"last4"`
+	Usable         bool        `json:"usable"`
+	Problem        string      `json:"problem,omitempty"`
+	Blocked        string      `json:"blocked,omitempty"`
+	CoolingSeconds int64       `json:"cooling_seconds,omitempty"`
+	PairCooling    int         `json:"pair_cooling,omitempty"`
+	Limit          float64     `json:"limit,omitempty"`     // 初始额度 USD;0 = 未设限(老卡)
+	UsedUSD        float64     `json:"used_usd,omitempty"`  // 从 checkout records 聚合而来
+	UsedCount      int         `json:"used_count,omitempty"`
+	PerMonths      map[int]int `json:"per_months,omitempty"`
+	Remaining      float64     `json:"remaining,omitempty"` // Limit - UsedUSD;Limit=0 时为 0 且 Unlimited=true
+	Unlimited      bool        `json:"unlimited,omitempty"`
+	Depleted       bool        `json:"depleted,omitempty"`
 }
 
 func CardsStatus(v *vault.Vault) ([]CardStatus, error) {
@@ -412,10 +419,19 @@ func CardsStatus(v *vault.Vault) ([]CardStatus, error) {
 	if err != nil {
 		return nil, err
 	}
+	usage, err := aggregateCardUsage(v)
+	if err != nil {
+		return nil, err
+	}
+	// 下一单最便宜花费,用于判定"额度不足"。目录缺失时按季卡($2.45)兜底。
+	minCost := 2.45
+	if cat, catErr := ReadCatalog(v); catErr == nil {
+		minCost = nextCost(cat)
+	}
 	now := time.Now().Unix()
 	status := make([]CardStatus, 0, len(cards))
 	for _, c := range cards {
-		entry := CardStatus{Last4: cardTail(c), Usable: true}
+		entry := CardStatus{Last4: cardTail(c), Usable: true, Limit: c.Limit}
 		fingerprint := cardFingerprint(c)
 		if problem := validateCard(c); problem != nil {
 			entry.Usable = false
@@ -437,9 +453,57 @@ func CardsStatus(v *vault.Vault) ([]CardStatus, error) {
 				entry.PairCooling++
 			}
 		}
+		if u := usage[fingerprint]; u != nil {
+			entry.UsedUSD = u.USD
+			entry.UsedCount = u.Count
+			entry.PerMonths = u.PerMonths
+		}
+		if c.Limit <= 0 {
+			entry.Unlimited = true
+		} else {
+			entry.Remaining = roundCents(c.Limit - entry.UsedUSD)
+			if entry.Remaining < minCost {
+				entry.Depleted = true
+				entry.Usable = false
+			}
+		}
 		status = append(status, entry)
 	}
 	return status, nil
+}
+
+// cardHasBudget reports whether the card's leftover limit can still fund the
+// cheapest configured plan. Cards without a configured limit always pass.
+func cardHasBudget(v *vault.Vault, c card, usage map[string]*CardUsage, minCost float64) bool {
+	if c.Limit <= 0 {
+		return true
+	}
+	used := 0.0
+	if u := usage[cardFingerprint(c)]; u != nil {
+		used = u.USD
+	}
+	return c.Limit-used >= minCost
+}
+
+// filterByBudget drops cards whose remaining limit cannot cover minCost.
+// usage/minCost are precomputed by the caller so hot rotation paths do not pay
+// to re-scan the vault on every call.
+func filterByBudget(cards []card, usage map[string]*CardUsage, minCost float64) []card {
+	out := make([]card, 0, len(cards))
+	for _, c := range cards {
+		if c.Limit <= 0 {
+			out = append(out, c)
+			continue
+		}
+		used := 0.0
+		if u := usage[cardFingerprint(c)]; u != nil {
+			used = u.USD
+		}
+		if c.Limit-used >= minCost {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // AddCardRecords appends cards from a JSON object or array. Missing billing
@@ -504,6 +568,12 @@ func mergeCards(v *vault.Vault, existing, incoming []card, inherit bool) (int, e
 		}
 		if err := validateCard(c); err != nil {
 			return 0, fmt.Errorf("card ending %s: %w", cardTail(c), err)
+		}
+		// 新加卡必须声明初始额度 USD;只有历史老卡(通过 SetCardRecords 或旧
+		// vault 导入)允许 Limit=0 代表"未设限"。add 走的是 inherit=true 的
+		// AddCardRecords,这里就要卡住。
+		if inherit && c.Limit <= 0 {
+			return 0, fmt.Errorf("card ending %s: 初始额度必填且必须大于 0", cardTail(c))
 		}
 		replaced := false
 		for i := range merged {

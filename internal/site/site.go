@@ -234,6 +234,10 @@ func Run(ctx context.Context) error {
 	mux.HandleFunc("POST "+adminBase+"/api/admin/folders/delete", s.admin(s.deleteFolder))
 	mux.HandleFunc("POST "+adminBase+"/api/admin/codes/move", s.admin(s.moveCodes))
 	mux.HandleFunc("POST "+adminBase+"/api/admin/codes/copy", s.admin(s.copyCode))
+	mux.HandleFunc("GET "+adminBase+"/api/admin/cards", s.admin(s.cardsList))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/cards", s.admin(s.cardsAdd))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/cards/remove", s.admin(s.cardsRemove))
+	mux.HandleFunc("POST "+adminBase+"/api/admin/cards/unblock", s.admin(s.cardsUnblock))
 	addr := os.Getenv("XGIFT_LISTEN")
 	if addr == "" {
 		addr = "127.0.0.1:8787"

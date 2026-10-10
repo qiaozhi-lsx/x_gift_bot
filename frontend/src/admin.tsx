@@ -43,7 +43,7 @@ import {
   type AdminStats,
   type Folder,
 } from "./adminApi";
-import { codeStatus as statuses } from "./codeStatus";
+import { codeStatus as statuses, formatCost, planLabel } from "./codeStatus";
 import { FolderPanel } from "./FolderPanel";
 import { FilterBar } from "./FilterBar";
 import { parseFilter } from "./filter";
@@ -52,6 +52,7 @@ import { LookupPanel } from "./LookupPanel";
 import { RecoveryPanel } from "./RecoveryPanel";
 import { StatsPanel } from "./StatsPanel";
 import { ManualPaymentPanel } from "./ManualPaymentPanel";
+import { CardsPanel } from "./CardsPanel";
 
 type Code = AdminCode;
 type Listing = {
@@ -435,6 +436,7 @@ function Admin() {
         />
       </Box>
       <ManualPaymentPanel />
+      <CardsPanel />
       <RecoveryPanel selection={recoverySelection} />
       <StatsPanel refreshSignal={statsSignal} />
       <FolderPanel
@@ -857,15 +859,33 @@ function Admin() {
                     </Typography>
                   </TableCell>
                   <TableCell sx={{ whiteSpace: "nowrap" }}>
-                    {code.months} 个月
+                    {planLabel(code.months)}
                   </TableCell>
                   <TableCell sx={{ minWidth: 100, maxWidth: 240 }}>
-                    <Chip
-                      size="small"
-                      variant="outlined"
-                      color={statuses[code.status]?.color ?? "default"}
-                      label={statuses[code.status]?.label ?? code.status}
-                    />
+                    <Stack
+                      direction="row"
+                      spacing={0.75}
+                      alignItems="center"
+                      flexWrap="wrap"
+                      useFlexGap
+                    >
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        color={statuses[code.status]?.color ?? "default"}
+                        label={statuses[code.status]?.label ?? code.status}
+                      />
+                      {code.status === "succeeded" && formatCost(code.months) && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}
+                          aria-label={`付款成本 ${formatCost(code.months)}`}
+                        >
+                          成本 {formatCost(code.months)}
+                        </Typography>
+                      )}
+                    </Stack>
                     {code.message && (
                       <Typography
                         variant="caption"

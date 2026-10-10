@@ -170,6 +170,21 @@ func choosePaymentPair(v *vault.Vault, cards []card, nodes []json.RawMessage, ke
 	if len(usable) == 0 {
 		return card{}, nil, ErrNoUsableCard
 	}
+	// 剔除可用额度已不足以覆盖下一单(最便宜套餐)成本的卡;未设限额的老卡
+	// (Limit=0)直接保留。pinned card 由上层保证不会走到这里。
+	usage, err := aggregateCardUsage(v)
+	if err != nil {
+		return card{}, nil, err
+	}
+	minCost := 2.45
+	if cat, catErr := ReadCatalog(v); catErr == nil {
+		minCost = nextCost(cat)
+	}
+	if filtered := filterByBudget(usable, usage, minCost); len(filtered) > 0 {
+		usable = filtered
+	} else {
+		return card{}, nil, ErrNoUsableCard
+	}
 	if len(nodes) == 0 {
 		chosen, err := pickCard(v, usable, keepCard)
 		if err != nil {
@@ -243,6 +258,22 @@ func paymentNodes(v *vault.Vault) ([]json.RawMessage, error) {
 func continueOrRotate(v *vault.Vault, cards []card, nodes []json.RawMessage, rotation *paymentRotation, continueBatch bool, forbidden string) (card, json.RawMessage, int, error) {
 	if continueBatch && rotation != nil && rotation.Used < PaymentBatchSize && rotation.CardFingerprint != "" {
 		c, ok := cardByFingerprint(cards, rotation.CardFingerprint)
+		if ok && validateCard(c) == nil {
+			// 固定卡但额度告罄时放弃续用,走 choosePaymentPair 换一张。
+			if c.Limit > 0 {
+				usage, uErr := aggregateCardUsage(v)
+				if uErr != nil {
+					return card{}, nil, 0, uErr
+				}
+				minCost := 2.45
+				if cat, catErr := ReadCatalog(v); catErr == nil {
+					minCost = nextCost(cat)
+				}
+				if !cardHasBudget(v, c, usage, minCost) {
+					ok = false
+				}
+			}
+		}
 		if ok && validateCard(c) == nil {
 			if blocked, e := paymentCardBlocked(v, rotation.CardFingerprint); e != nil {
 				return card{}, nil, 0, e
