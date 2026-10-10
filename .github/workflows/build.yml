@@ -1,0 +1,41 @@
+name: build-linux-amd64
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # amd 服务器是 Ubuntu 22.04,用同版本 runner 保证 glibc 兼容
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.1"
+          cache: true
+
+      - name: Build frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Build binaries (cgo)
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          go build -tags with_quic,with_utls -o bin/xgift ./cmd/xgift
+          go build -tags with_quic,with_utls -o bin/xgift-web ./cmd/xgift-web
+          ls -la bin/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xgift-linux-amd64
+          path: bin/
+          if-no-files-found: error
