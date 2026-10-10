@@ -186,6 +186,7 @@ func Run(ctx context.Context) error {
 	mux.HandleFunc("GET /api/manual-link/queue/{ticket}", s.publicLinkQueueStatus)
 	mux.HandleFunc("POST /api/manual-link/queue/{ticket}/cancel", s.cancelPublicLinkQueue)
 	mux.HandleFunc("POST /api/status", s.status)
+	mux.HandleFunc("POST /api/code-info", s.human("code-info", s.codeInfo))
 	mux.HandleFunc("POST /api/check", s.human("check", s.check))
 	mux.HandleFunc("GET /admin", s.admin(s.asset("admin.html", "text/html; charset=utf-8")))
 	mux.HandleFunc("GET /admin.js", s.admin(s.asset("admin.js", "application/javascript; charset=utf-8")))
@@ -567,6 +568,38 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 		s.reconcileStatus(r.Context(), &c)
 	}
 	reply(w, 200, map[string]any{"status": c.Status, "months": c.Months, "message": c.Message, "progress": c.Progress, "rechecking": s.autoChecking(&c), "payment_declined": s.paymentDeclined(&c)})
+}
+
+// codeInfo is a read-only code lookup: no checkout, no writes, no username.
+// Used by the redemption page to show the bound plan right after the code is
+// entered (plan comes from the code, customers never choose it).
+func (s *server) codeInfo(w http.ResponseWriter, r *http.Request) {
+	var q struct {
+		Code string `json:"code"`
+	}
+	if !decode(w, r, &q) {
+		return
+	}
+	q.Code = strings.ToUpper(strings.TrimSpace(q.Code))
+	if !codePattern.MatchString(q.Code) {
+		message(w, 400, "请填写完整兑换码。")
+		return
+	}
+	c, e := s.find(q.Code)
+	if errors.Is(e, sql.ErrNoRows) {
+		message(w, 404, "兑换码不存在，请检查后重试。")
+		return
+	}
+	if e != nil {
+		message(w, 503, "服务暂时不可用，请稍后重试。")
+		return
+	}
+	reply(w, 200, map[string]any{
+		"status":  c.Status,
+		"months":  c.Months,
+		"label":   fmt.Sprintf("%d 个月 Premium", c.Months),
+		"message": "卡密有效。",
+	})
 }
 
 // check is a read-only eligibility probe: no code lookup, no checkout, no writes.
