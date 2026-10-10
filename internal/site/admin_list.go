@@ -129,11 +129,8 @@ func (s *server) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	paymentsReady, _ := s.paymentsAvailable()
-	plans := map[int]int{}
-	if cat, catErr := checkout.ReadCatalog(s.vault); catErr == nil {
-		for _, p := range cat.Plans {
-			plans[p.Months] = p.Amount // minor units,前端除 100 为 USD
-		}
-	}
-	reply(w, 200, map[string]any{"codes": codes, "payments_enabled": paymentsReady, "page": page, "has_more": hasMore, "folder": filter, "folders": folders, "stats": stats, "plan_prices": plans})
+	// 卡实付 USD 代价(月份 → USD)。Stripe 账单货币是 BDT,但真正扣到卡上的
+	// 是 USD 等值;前端显示"成本 $X"读这份就对了。
+	costs := checkout.PlanCostsUSD()
+	reply(w, 200, map[string]any{"codes": codes, "payments_enabled": paymentsReady, "page": page, "has_more": hasMore, "folder": filter, "folders": folders, "stats": stats, "plan_costs_usd": costs})
 }

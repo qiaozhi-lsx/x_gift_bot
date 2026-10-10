@@ -2,11 +2,26 @@ package checkout
 
 import (
 	"encoding/json"
+	"log"
 	"math"
 	"sync"
 	"time"
 	"xgift/internal/vault"
 )
+
+// PlanCostUSD 声明每种套餐"卡实际扣款的 USD 等值"。Stripe 账单货币是 BDT
+// (catalog.currency),Record.Amount 存的是 BDT minor units,但到卡上收到的
+// charge 是 USD。**运维必须保证这个 map 跟 Stripe 后台公布的 USD 等值一致**;
+// 一旦 Stripe 调价(促销/汇率/A-B 测试),这里也要跟着改,否则 CardStatus 的
+// Remaining 和 Depleted 判定会跟真实卡余额漂移。
+//
+// 下一笔付款从 catalog 读 months 后在这里查 USD 代价。没在表里的 months 不是
+// 没花钱 —— 它只是没定价,aggregateCardUsage 会用 UnpricedMonths 单独报
+// 告给运维,**不**静默扔掉。
+var PlanCostUSD = map[int]float64{
+	3: 2.45,
+	6: 4.95,
+}
 
 // PlanLabel returns the short Chinese label used in admin UIs.
 // Kept for CLI/log convenience; the production plan set is 3→季卡, 6→半年卡.
@@ -81,11 +96,18 @@ func countsForLimit(r Record) bool {
 
 // aggregateCardUsage scans both live and retired checkout records and groups
 // relevant charges by card fingerprint. SessionID deduplicates a record that
-// exists in both the live and retired prefixes for the same recipient. The
-// cost per record is derived from Record.Amount(minor units of r.Currency);
-// non-USD rows are skipped because the Limit on each card is denominated in
-// USD. Succeeded rows feed USD/Count/PerMonths; in-flight rows additionally
-// bump InFlight so operators can see what is currently pending.
+// exists in both the live and retired prefixes for the same recipient.
+//
+// Cost source: PlanCostUSD[months] — the operator-declared USD charge a card
+// actually sees. Record.Amount is Stripe's billing-currency amount (BDT), not
+// what hits the card, so we never use it for Limit math. Months absent from
+// PlanCostUSD get a one-line warn log and are left out of USD/Count but still
+// bump an "unpriced" counter so operators can audit the gap.
+//
+// Succeeded rows feed USD/Count/PerMonths; in-flight rows (submitted /
+// requires_action / unknown with SubmittedAt > 0) additionally bump InFlight
+// so a card pinned to a running order cannot be re-pinned past its Limit
+// before the first order's succeeded state lands.
 func aggregateCardUsage(v *vault.Vault) (map[string]*CardUsage, error) {
 	// Fast path: fresh cached aggregation.
 	usageCacheMu.RLock()
@@ -98,6 +120,7 @@ func aggregateCardUsage(v *vault.Vault) (map[string]*CardUsage, error) {
 
 	out := map[string]*CardUsage{}
 	seen := map[string]struct{}{} // SessionID
+	unpriced := map[int]int{}     // months → count,用于最后一次性 warn
 	for _, prefix := range []string{"checkout:", "checkout-retired:"} {
 		names, err := v.NamesWithPrefix(prefix)
 		if err != nil {
@@ -121,26 +144,34 @@ func aggregateCardUsage(v *vault.Vault) (map[string]*CardUsage, error) {
 				continue
 			}
 			seen[r.SessionID] = struct{}{}
-			// Limit 以 USD 为语义;非 USD 记录(目录未来可能开)此处跳过并
-			// 保留 metric 入口,这是显式的"未支持"信号,优于默默合并。
-			if r.Currency != "" && r.Currency != "usd" {
-				continue
+			cost, priced := PlanCostUSD[r.Months]
+			if !priced {
+				unpriced[r.Months]++
+				// 月份没定价不代表没花钱,而是运维还没把这个套餐的 USD 等值
+				// 填进 PlanCostUSD。不计入 USD 以免估错,但别把订单也丢掉,
+				// 让下面 InFlight / Count 仍能反映真实活动。
 			}
 			u := out[r.CardFingerprint]
 			if u == nil {
 				u = &CardUsage{PerMonths: map[int]int{}}
 				out[r.CardFingerprint] = u
 			}
-			cost := float64(r.Amount) / 100.0
 			if r.Status == "succeeded" {
 				u.Count++
-				u.USD = roundCents(u.USD + cost)
 				u.PerMonths[r.Months]++
+				if priced {
+					u.USD = roundCents(u.USD + cost)
+				}
 			} else {
 				u.InFlight++
-				u.USD = roundCents(u.USD + cost)
+				if priced {
+					u.USD = roundCents(u.USD + cost)
+				}
 			}
 		}
+	}
+	for months, n := range unpriced {
+		log.Printf("aggregateCardUsage: %d charges with months=%d have no entry in PlanCostUSD; UsedUSD is understated for every card that ran them", n, months)
 	}
 
 	usageCacheMu.Lock()
@@ -171,19 +202,19 @@ func roundCents(v float64) float64 {
 	return math.Round(v*100) / 100
 }
 
-// nextCost reports the USD cost of the cheapest configured plan. A card
-// with less than this remaining is useless. Reads from catalog so a
-// run-time price change immediately flows into Depleted detection.
-// Non-USD catalogs collapse to a sensible 2.45 fallback (3-month plan)
-// — a non-USD catalog isn't production today; Important finding 11 covers
-// the broader multi-currency gap.
+// nextCost reports the USD cost of the cheapest plan the catalog would next
+// serve. Resolved against PlanCostUSD (not catalog.Amount, which is in
+// Stripe's billing currency / BDT). A plan configured in catalog but missing
+// from PlanCostUSD is skipped — operators get a warn log so they know to add
+// it. Fallback 2.45 covers an empty catalog so Depleted doesn't match $0.
 func nextCost(cat Catalog) float64 {
-	if cat.Currency != "" && cat.Currency != "usd" {
-		return 2.45
-	}
 	min := 0.0
 	for _, p := range cat.Plans {
-		cost := float64(p.Amount) / 100.0
+		cost, ok := PlanCostUSD[p.Months]
+		if !ok {
+			log.Printf("nextCost: catalog plan months=%d missing from PlanCostUSD; it will not be used for Limit math", p.Months)
+			continue
+		}
 		if min == 0 || cost < min {
 			min = cost
 		}
@@ -192,4 +223,15 @@ func nextCost(cat Catalog) float64 {
 		min = 2.45
 	}
 	return min
+}
+
+// PlanCostsUSD is the public read-only snapshot of PlanCostUSD for the admin
+// frontend. Returning a plain float map keeps the client contract explicit:
+// "these are the USD amounts you can show as 成本".
+func PlanCostsUSD() map[int]float64 {
+	out := make(map[int]float64, len(PlanCostUSD))
+	for k, v := range PlanCostUSD {
+		out[k] = v
+	}
+	return out
 }
