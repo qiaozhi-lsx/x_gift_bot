@@ -498,7 +498,7 @@ func (s *server) asset(name, kind string) http.HandlerFunc {
 			switch name {
 			case "admin.html":
 				b = bytes.ReplaceAll(b, []byte("/admin.js"), []byte(s.adminBase+"/admin.js"))
-				b = bytes.ReplaceAll(b, []byte("__XGIFT_ADMIN_BASE__"), []byte(strconv.Quote(s.adminBase)))
+				b = bytes.ReplaceAll(b, []byte("__XGIFT_ADMIN_BASE__"), []byte(s.adminBase))
 			case "admin.js":
 				b = bytes.ReplaceAll(b, []byte(`"/admin"`), []byte(`"`+s.adminBase+`/admin"`))
 			}

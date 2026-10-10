@@ -34,7 +34,7 @@ export async function request<T>(
   // Admin endpoints live under XGIFT_ADMIN_PATH when one is configured; the
   // prefix is injected into admin.html at serve time. Covers every caller
   // regardless of how the path was built.
-  const adminBase = (window as unknown as { __XGIFT_BASE__?: string }).__XGIFT_BASE__ || "";
+  const adminBase = document.querySelector<HTMLMetaElement>('meta[name="xgift-admin-base"]')?.content || "";
   const url = adminBase && path.startsWith("/api/admin/") ? adminBase + path : path;
   const response = await fetch(url, {
     method: body === undefined ? "GET" : "POST",
