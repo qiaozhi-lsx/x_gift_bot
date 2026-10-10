@@ -565,7 +565,11 @@ func (s *server) middleware(next http.Handler) http.Handler {
 			max := 60
 			bucket := "api:"
 			if strings.Contains(r.URL.Path, "/api/admin/") || strings.HasSuffix(r.URL.Path, "/admin") {
-				max = 20
+				// Admin surface is a single operator in a browser: one page
+				// load fans out to several read-only endpoints and bulk
+				// actions can touch many rows. The hard rate limit now sits
+				// well above interactive use and still catches scripted abuse.
+				max = 300
 				bucket = "admin:"
 			} else if r.URL.Path == "/api/redeem" || r.URL.Path == "/api/redeem-batch" {
 				max = 4
