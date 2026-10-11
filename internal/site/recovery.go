@@ -111,9 +111,14 @@ func (s *server) initRecovery() error {
 	return nil
 }
 func (s *server) recoveryStatus(w http.ResponseWriter, r *http.Request) {
+	// recoveryMu 之前把 vault 读 + DB 查全部包进临界区,只要有一个请求卡
+	// 在 vault.Get(几千条 checkout:*) 或 aggregateCardUsage 的解密循环里,
+	// 后续所有 /recovery 请求都 head-of-line block,进而拖垮 DB 连接池
+	// (SetMaxOpenConns=1),整站挂死 2 分钟以上才被 systemd 救回。
+	// 修法:只在拍 recoveryBatch 快照时持锁,其余读操作各自并发安全。
 	s.recoveryMu.Lock()
-	defer s.recoveryMu.Unlock()
 	q, err := s.loadRecovery()
+	s.recoveryMu.Unlock()
 	if err != nil {
 		message(w, 503, "无法读取补单任务。")
 		return
