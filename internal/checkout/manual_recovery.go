@@ -74,7 +74,20 @@ func (p *manualProof) guard(r *Record, plan Plan) error {
 	if i == nil {
 		return page.guard(r, plan, true)
 	}
-	if page.Intent == nil || page.Intent.ID != i.ID || !regexp.MustCompile(`^pi_[A-Za-z0-9]+$`).MatchString(i.ID) || !i.Live || i.Status != "requires_payment_method" || i.Amount != plan.Minor || i.Currency != plan.Currency || i.Received == nil || *i.Received != 0 || i.Capturable == nil || *i.Capturable != 0 {
+	// Stripe omits amount_received and amount_capturable entirely from an
+	// intent in requires_payment_method — the exact shape of every declined
+	// order this preflight exists to retry. Treat absent as zero; a present
+	// non-zero value still fails, and the status check below remains the
+	// primary proof that nothing was captured. (The old nil-must-fail check
+	// made manual recovery reject every genuinely retryable order.)
+	received, capturable := 0, 0
+	if i.Received != nil {
+		received = *i.Received
+	}
+	if i.Capturable != nil {
+		capturable = *i.Capturable
+	}
+	if page.Intent == nil || page.Intent.ID != i.ID || !regexp.MustCompile(`^pi_[A-Za-z0-9]+$`).MatchString(i.ID) || !i.Live || i.Status != "requires_payment_method" || i.Amount != plan.Minor || i.Currency != plan.Currency || received != 0 || capturable != 0 {
 		return errors.New("existing payment lacks conclusive unpaid retry evidence")
 	}
 	return nil

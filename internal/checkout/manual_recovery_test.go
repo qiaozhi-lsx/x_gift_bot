@@ -28,6 +28,29 @@ func manualFixture(t *testing.T) (*vault.Vault, *Record, Plan, manualProof) {
 	proof := manualProof{Page: raw, Intent: &stripeIntentEvidence{ID: "pi_Test", Status: "requires_payment_method", Currency: "usd", Live: true, Amount: 30000, Received: &zero, Capturable: &zero}}
 	return v, r, plan, proof
 }
+func TestManualProofGuardAcceptsOmittedReceivedAndCapturable(t *testing.T) {
+	_, r, plan, proof := manualFixture(t)
+	// Real Stripe responses for requires_payment_method intents omit
+	// amount_received / amount_capturable entirely; the fixture's explicit
+	// zeros hid that from the old nil-must-fail guard, which in production
+	// rejected every declined order the 补单 flow needed to retry.
+	proof.Intent.Received = nil
+	proof.Intent.Capturable = nil
+	if err := proof.guard(r, plan); err != nil {
+		t.Fatalf("guard rejected a wire-shape unpaid intent: %v", err)
+	}
+	one := 1
+	proof.Intent.Received = &one
+	if err := proof.guard(r, plan); err == nil {
+		t.Fatal("guard accepted an intent reporting a received amount")
+	}
+	proof.Intent.Received = nil
+	proof.Intent.Capturable = &one
+	if err := proof.guard(r, plan); err == nil {
+		t.Fatal("guard accepted an intent reporting a capturable amount")
+	}
+}
+
 func TestManualPreflightFailureNeverConfirms(t *testing.T) {
 	v, r, plan, proof := manualFixture(t)
 	proof.Page = []byte(strings.ReplaceAll(string(proof.Page), `"unpaid"`, `"paid"`))
