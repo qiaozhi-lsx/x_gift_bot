@@ -587,6 +587,7 @@ html{scroll-padding-top:90px}
 </div></section>
 <footer><div class="f-logo"><div class="logo-mark"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.3 19.5h2.04L6.49 3.24H4.3l13.3 17.4Z"/></svg></div><span data-zh="X Premium 兑换" data-en="X Premium Redeem" >X Premium 兑换</span></div><div data-zh="独立运营的自助开通服务。&lt;br&gt;X 品牌及相关权益归其权利人所有。" data-en="An independently operated redemption service.&lt;br&gt;The X brand and features belong to their respective owners." class="fine">独立运营的自助开通服务。<br>X 品牌及相关权益归其权利人所有。</div><a data-zh="返回顶部 ↑" data-en="Back to top ↑" class="top" href="#">返回顶部 ↑</a></footer>
 <dialog class="lookup-dialog" id="lookupDialog" aria-labelledby="lookupTitle"><div class="lookup-head"><h2 data-zh="卡密查询" data-en="Code lookup" id="lookupTitle">卡密查询</h2><button type="button" class="dialog-close" id="closeLookup" aria-label="关闭 / Close">×</button></div><p data-zh="输入完整卡密，查询原订单的状态、套餐与办理进度。已兑换卡密也可查询。" data-en="Enter a complete code to view its original order status, plan and progress. Redeemed codes are supported." class="desc">输入完整卡密，查询原订单的状态、套餐与办理进度。已兑换卡密也可查询。</p><form id="lookupForm"><label data-zh="完整卡密" data-en="Complete code" class="f" for="lookupCode">完整卡密</label><input class="field" id="lookupCode" required autocomplete="off" spellcheck="false" placeholder="xPP-… / XG-…"><button data-zh="查询卡密" data-en="Look up code" class="btn blue" id="lookupButton" type="submit">查询卡密</button></form><div class="notice" id="lookupError" role="status" hidden></div><div id="lookupResult" aria-live="polite"></div><p data-zh="仅查询原订单，不会发起新的兑换或付款。" data-en="Looks up the original order only. No new redemption or payment." class="mini">仅查询原订单，不会发起新的兑换或付款。</p></dialog>
+<dialog class="lookup-dialog" id="unavailableDialog" aria-labelledby="unavailableTitle"><div class="lookup-head"><h2 data-zh="服务暂时不可用" data-en="Service temporarily unavailable" id="unavailableTitle">服务暂时不可用</h2><button type="button" class="dialog-close" id="closeUnavailable" aria-label="关闭 / Close">×</button></div><p data-zh="服务暂时不可用，请联系售后，或者联系卡密商家。" data-en="The service is temporarily unavailable. Please contact support or the seller you bought the code from." class="desc">服务暂时不可用，请联系售后，或者联系卡密商家。</p><p class="mini" id="unavailableCodeLine">卡密：<span id="unavailableResult" style="font-family:monospace"></span></p><div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap"><button type="button" class="btn ghost" id="unavailableLookup" data-zh="卡密查询" data-en="Code lookup">卡密查询</button><button type="button" class="btn" id="unavailableOk" data-zh="知道了" data-en="OK">知道了</button></div></dialog>
 <div class="hv-mask" id="hvMask" hidden><div class="hv-card" role="dialog" aria-modal="true" aria-labelledby="hvTitle"><h3 data-zh="人机验证" data-en="Security verification" id="hvTitle">人机验证</h3><p data-zh="请完成安全验证，通过后会自动继续。" data-en="Complete the security check to continue." class="hv-desc">请完成安全验证，通过后会自动继续。</p><div class="hv-slot" id="hvSlot"></div><div class="hv-err" id="hvErr" hidden></div><div class="hv-actions"><button data-zh="取消" data-en="Cancel" class="btn ghost" id="hvCancel" type="button">取消</button></div></div></div>
 
 <script>
@@ -624,7 +625,7 @@ const userOk=u=>/^[a-z0-9_]{1,15}$/.test(u);
 const parseCodes=raw=>[...new Set(raw.split(/[\s,;，；]+/).map(s=>s.trim().toUpperCase()).filter(Boolean))];
 const plan=m=>t(`${m} 个月 Premium`,`${m} months Premium`);
 const CHECK_TTL=5*60*1000;
-let JOB=[], step=1, verifyingCodes=false, submitting=false, batchRunning=false, lastLookup=null, lookupSerial=0;
+let JOB=[], step=1, verifyingCodes=false, submitting=false, batchRunning=false, activeBatchToken=null, lastLookup=null, lookupSerial=0;
 class APIError extends Error {constructor(message,status=0,code=''){super(message);this.status=status;this.code=code;}}
 async function request(path,payload,token,timeout=45000) {
   const controller=new AbortController();
@@ -763,7 +764,7 @@ $('btn2').addEventListener('click',async()=>{
   try{
     const data=await request('/api/redeem-batch',{items:JOB.map(it=>({code:it.code,username:it.user}))},undefined,130000);
     if(!data.token)throw new APIError(t('提交结果无法确认，请使用卡密查询。','Submission is unconfirmed. Please use Code lookup.'));
-    batchRunning=true;pollBatch(data.token);
+    batchRunning=true;activeBatchToken=data.token;pollBatch(data.token);
   }catch(e){
     text($('p3title'),'提交结果暂未确认','Submission not confirmed');
     text($('p3desc'),'请先使用「卡密查询」核实原订单，再决定后续操作。','Use Code lookup to check the original order before taking further action.');
@@ -793,9 +794,30 @@ async function pollBatch(token,errors=0){
     renderJobs(data.items);
     $('pbarFill').style.width=Math.min(100,data.items.reduce((n,it)=>n+(Number(it.progress)||0),0)/data.total)+'%';
     text($('pmsg'),`已处理 ${data.done||0}/${data.total}`,`Processed ${data.done||0}/${data.total}`);
-    if(data.done>=data.total){batchRunning=false;const success=data.items.filter(it=>it.status==='succeeded').length;text($('p3title'),success===data.total?'兑换完成':'办理结果',success===data.total?'Redemption complete':'Redemption results');text($('p3desc'),`成功 ${success}/${data.total}。蓝标显示需通过 X 审核，请保留卡密查询原订单。`,`${success}/${data.total} completed. Blue checkmarks require X review. Keep your codes to look up the original orders.`);showLookupAction(true);return;}
+    if(data.done>=data.total){batchRunning=false;activeBatchToken=null;const success=data.items.filter(it=>it.status==='succeeded').length;text($('p3title'),success===data.total?'兑换完成':'办理结果',success===data.total?'Redemption complete':'Redemption results');text($('p3desc'),`成功 ${success}/${data.total}。蓝标显示需通过 X 审核，请保留卡密查询原订单。`,`${success}/${data.total} completed. Blue checkmarks require X review. Keep your codes to look up the original orders.`);showLookupAction(true);return;}
     text($('p3title'),'正在办理…','Processing…');setTimeout(()=>pollBatch(token),2500);
-  }catch(e){text($('pmsg'),'暂时无法获取进度，原订单结果待确认。','Progress is temporarily unavailable. The original order is unconfirmed.');if(errors>=4){batchRunning=false;showLookupAction();return;}setTimeout(()=>pollBatch(token,errors+1),4000);}
+  }catch(e){
+    if(e&&e.status===404){
+      text($('p3title'),'进度已过期','Progress expired');
+      text($('pmsg'),'查询批次不存在或已过期。可用「卡密查询」核实原订单结果。','This batch is no longer available. Use Code lookup to confirm the original order.');
+      batchRunning=false;activeBatchToken=null;showLookupAction();return;
+    }
+    if(errors>=45){
+      // 后端长时间不可用:自动关闭本单的进度视图,弹出明确提示,让用户去找售后
+      // 或商家核实,不再把用户冻结在无法更新的进度页上。
+      batchRunning=false;activeBatchToken=null;
+      $('doneBox').classList.remove('show');setStep(1);
+      showUnavailable();
+      return;
+    }
+    text($('pmsg'),`网络不稳定，正在重试…（第 ${errors+1} 次）`,`Connection issue, retrying… (${errors+1})`);
+    setTimeout(()=>pollBatch(token,errors+1),Math.min(2500+errors*500,8000));
+  }
+}
+function showUnavailable(){
+  $('unavailableResult').textContent=JOB[0]?.code||'';
+  $('unavailableLookup').hidden=!JOB.length;
+  if(!$('unavailableDialog').open)$('unavailableDialog').showModal();
 }
 let lookupOpener;
 function openLookup(code=''){
@@ -809,6 +831,9 @@ function openLookup(code=''){
 }
 document.querySelectorAll('[data-lookup]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();openLookup();}));
 $('closeLookup').onclick=()=>{$('lookupDialog').close();};
+$('closeUnavailable').onclick=()=>{$('unavailableDialog').close();};
+$('unavailableOk').onclick=()=>{$('unavailableDialog').close();};
+$('unavailableLookup').onclick=()=>{$('unavailableDialog').close();openLookup(JOB[0]?.code||'');};
 $('lookupDialog').addEventListener('close',()=>{lookupSerial++;$('lookupButton').disabled=false;text($('lookupButton'),'查询卡密','Look up code');lookupOpener?.focus();});
 $('lookupCode').addEventListener('input',()=>{lookupSerial++;lastLookup=null;$('lookupResult').replaceChildren();notice('lookupError');$('lookupButton').disabled=false;text($('lookupButton'),'查询卡密','Look up code');});
 $('lookupForm').addEventListener('submit',async e=>{

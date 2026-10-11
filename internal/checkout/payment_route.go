@@ -221,6 +221,15 @@ func rotateCoolingRouteLocked(v *vault.Vault, old *paymentRoute) (*paymentRoute,
 		return nil, errors.New("payment route changed during retry")
 	}
 	raw, err := v.Get("payment-outbounds")
+	if errors.Is(err, sql.ErrNoRows) {
+		// No proxy pool configured (direct-only deployment). There is no
+		// alternate node to rotate to, so keep the existing binding. The
+		// write path (choosePaymentPair) picks the same direct node in
+		// this situation; failing here instead broke manual recovery:
+		// any declined order pinned to a cooling direct node made its
+		// preflight die with "secret payment-outbounds unavailable".
+		return old, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +237,10 @@ func rotateCoolingRouteLocked(v *vault.Vault, old *paymentRoute) (*paymentRoute,
 	nodes, err := proxy.ParseOutboundPool(raw)
 	if err != nil {
 		return nil, err
+	}
+	if len(nodes) == 0 {
+		// Pool record exists but is empty — same direct-only situation.
+		return old, nil
 	}
 	node, err := chooseAvailablePaymentNode(v, nodes)
 	if err != nil {
