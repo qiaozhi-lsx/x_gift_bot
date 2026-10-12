@@ -437,7 +437,10 @@ func (s *server) batchStatus(w http.ResponseWriter, r *http.Request) {
 		message(w, 400, "查询参数无效。")
 		return
 	}
-	rows, err := s.db.Query(`SELECT q.seq,q.username,q.state,q.message,c.hint,c.status,c.progress,c.message,c.months
+	// 队列位次一次性用相关子查询取回:SetMaxOpenConns(1) 下单连接池在 rows
+	// 遍历中再发 QueryRow 会等外层尚未归还的连接,自死锁并拖死整站 site.db。
+	rows, err := s.db.Query(`SELECT q.seq,q.username,q.state,q.message,c.hint,c.status,c.progress,c.message,c.months,
+ COALESCE((SELECT COUNT(*) FROM redeem_queue r2 WHERE r2.state IN ('queued','running') AND r2.seq < q.seq),0)
  FROM redeem_queue q JOIN codes c ON c.id = q.code_id WHERE q.token=? ORDER BY q.seq`, tok)
 	if err != nil {
 		message(w, 503, "暂时无法查询队列，请稍后重试。")
@@ -449,9 +452,10 @@ func (s *server) batchStatus(w http.ResponseWriter, r *http.Request) {
 	total := 0
 	for rows.Next() {
 		var seq int64
+		var ahead int
 		var username, qstate, qmsg, hint, cstatus, cmsg string
 		var progress, months int
-		if err = rows.Scan(&seq, &username, &qstate, &qmsg, &hint, &cstatus, &progress, &cmsg, &months); err != nil {
+		if err = rows.Scan(&seq, &username, &qstate, &qmsg, &hint, &cstatus, &progress, &cmsg, &months, &ahead); err != nil {
 			message(w, 503, "暂时无法查询队列，请稍后重试。")
 			return
 		}
@@ -459,8 +463,6 @@ func (s *server) batchStatus(w http.ResponseWriter, r *http.Request) {
 		entry := map[string]any{"hint": hint, "username": username, "months": months}
 		switch qstate {
 		case "queued":
-			var ahead int
-			_ = s.db.QueryRow("SELECT COUNT(*) FROM redeem_queue WHERE state IN ('queued','running') AND seq < ?", seq).Scan(&ahead)
 			entry["status"] = "queued"
 			entry["progress"] = 5
 			entry["ahead"] = ahead
